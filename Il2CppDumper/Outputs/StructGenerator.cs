@@ -366,16 +366,25 @@ namespace Il2CppDumper
                     AddMetadataUsageMethodRef(json, i.Value, il2Cpp.metadataUsages[i.Key]);
                 }
             }
-            //输出单独的StringLiteral
-            var stringLiterals = json.ScriptString.Select(x => new
+            var literalAddresses = json.ScriptString
+                .GroupBy(x => x.Index)
+                .ToDictionary(x => x.Key, x => x.Select(y => y.Address).Distinct().OrderBy(y => y).ToArray());
+            var stringLiterals = Enumerable.Range(0, metadata.stringLiterals.Length).Select(i =>
             {
-                value = x.Value,
-                address = $"0x{x.Address:X}"
+                var literal = metadata.stringLiterals[i];
+                literalAddresses.TryGetValue((uint)i, out var addresses);
+                return new
+                {
+                    index = i,
+                    length = literal.length,
+                    dataIndex = literal.dataIndex,
+                    value = metadata.GetStringLiteralFromIndex((uint)i),
+                    addresses = (addresses ?? Array.Empty<ulong>()).Select(x => $"0x{x:X}").ToArray()
+                };
             }).ToArray();
             var jsonOptions = new JsonSerializerOptions() { WriteIndented = true, IncludeFields = true };
             File.WriteAllText(outputDir + "stringliteral.json", JsonSerializer.Serialize(stringLiterals, jsonOptions), new UTF8Encoding(false));
-            //写入文件
-            File.WriteAllText(outputDir + "script.json", JsonSerializer.Serialize(json, jsonOptions));
+            File.WriteAllText(outputDir + "script.json", JsonSerializer.Serialize(json, jsonOptions), new UTF8Encoding(false));
             //il2cpp.h
             for (int i = 0; i < genericClassList.Count; i++)
             {
@@ -496,6 +505,7 @@ namespace Il2CppDumper
         {
             var scriptString = new ScriptString();
             json.ScriptString.Add(scriptString);
+            scriptString.Index = index;
             scriptString.Address = il2Cpp.GetRVA(address);
             scriptString.Value = metadata.GetStringLiteralFromIndex(index);
         }

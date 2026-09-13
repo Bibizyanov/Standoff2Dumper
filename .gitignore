@@ -8,3 +8,6 @@
 # Build intermediates
 **/bin/
 **/obj/
+
+# Dump output
+dump/

@@ -35,6 +35,14 @@ namespace Il2CppDumper
             startInfo.ArgumentList.Add(config.ProtectedCodeRegistration);
             startInfo.ArgumentList.Add("--metadata-reg-va");
             startInfo.ArgumentList.Add(config.ProtectedMetadataRegistration);
+            startInfo.ArgumentList.Add("--string-literal-offsets-field");
+            startInfo.ArgumentList.Add(config.ProtectedStringLiteralOffsetsField);
+            startInfo.ArgumentList.Add("--string-literal-data-field");
+            startInfo.ArgumentList.Add(config.ProtectedStringLiteralDataField);
+            startInfo.ArgumentList.Add("--string-literal-count-field");
+            startInfo.ArgumentList.Add(config.ProtectedStringLiteralCountField);
+            startInfo.ArgumentList.Add("--string-literal-offsets-count-field");
+            startInfo.ArgumentList.Add(config.ProtectedStringLiteralOffsetsCountField);
 
             using var process = Process.Start(startInfo) ?? throw new InvalidOperationException("python start failed");
             var stdout = process.StandardOutput.ReadToEnd();

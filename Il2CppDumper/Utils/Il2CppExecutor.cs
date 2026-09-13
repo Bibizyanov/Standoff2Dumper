@@ -44,8 +44,7 @@ namespace Il2CppDumper
                 foreach (var imageDef in metadata.imageDefs)
                 {
                     var imageDefName = metadata.GetStringFromIndex(imageDef.nameIndex);
-                    var codeGenModule = il2Cpp.codeGenModules[imageDefName];
-                    if (imageDef.customAttributeCount > 0)
+                    if (imageDef.customAttributeCount > 0 && il2Cpp.TryGetCodeGenModule(imageDefName, out var codeGenModule))
                     {
                         var pointers = il2Cpp.ReadClassArray<ulong>(il2Cpp.MapVATR(codeGenModule.customAttributeCacheGenerator), imageDef.customAttributeCount);
                         pointers.CopyTo(customAttributeGenerators, imageDef.customAttributeStart);
@@ -257,7 +256,8 @@ namespace Il2CppDumper
             Il2CppRGCTXDefinition[] collection = null;
             if (il2Cpp.Version >= 24.2)
             {
-                il2Cpp.rgctxsDictionary[imageName].TryGetValue(typeDef.token, out collection);
+                if (il2Cpp.TryGetRGCTXData(imageName, out var rgctxs))
+                    rgctxs.TryGetValue(typeDef.token, out collection);
             }
             else
             {
@@ -275,7 +275,8 @@ namespace Il2CppDumper
             Il2CppRGCTXDefinition[] collection = null;
             if (il2Cpp.Version >= 24.2)
             {
-                il2Cpp.rgctxsDictionary[imageName].TryGetValue(methodDef.token, out collection);
+                if (il2Cpp.TryGetRGCTXData(imageName, out var rgctxs))
+                    rgctxs.TryGetValue(methodDef.token, out collection);
             }
             else
             {

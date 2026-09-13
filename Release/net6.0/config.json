@@ -10,5 +10,11 @@
   "ProtectedMetadataVA": "0x1B60480",
   "ProtectedCodeRegistration": "0xB7C32E0",
   "ProtectedMetadataRegistration": "0xB7C3358",
-  "PythonExecutable": "python"
+  "PythonExecutable": "python",
+  "ProtectedStringLiteralOffsetsField": "0x160",
+  "ProtectedStringLiteralDataField": "0x138",
+  "ProtectedStringLiteralCountField": "0xFC",
+  "ProtectedStringLiteralOffsetsCountField": "0x44",
+  "GenerateDummyDll": true,
+  "DummyDllAddToken": true
 }

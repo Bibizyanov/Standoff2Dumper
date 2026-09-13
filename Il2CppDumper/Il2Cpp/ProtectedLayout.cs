@@ -130,9 +130,9 @@ namespace Il2CppDumper
             }
 
             var modulePointers = P64Array(pCodeRegistration.codeGenModules, pCodeRegistration.codeGenModulesCount);
-            codeGenModules = new Dictionary<string, Il2CppCodeGenModule>(modulePointers.Length, StringComparer.Ordinal);
-            codeGenModuleMethodPointers = new Dictionary<string, ulong[]>(modulePointers.Length, StringComparer.Ordinal);
-            rgctxsDictionary = new(modulePointers.Length, StringComparer.Ordinal);
+            codeGenModules = new Dictionary<string, Il2CppCodeGenModule>(modulePointers.Length, StringComparer.OrdinalIgnoreCase);
+            codeGenModuleMethodPointers = new Dictionary<string, ulong[]>(modulePointers.Length, StringComparer.OrdinalIgnoreCase);
+            rgctxsDictionary = new(modulePointers.Length, StringComparer.OrdinalIgnoreCase);
 
             foreach (var ptr in modulePointers)
             {
@@ -154,16 +154,31 @@ namespace Il2CppDumper
                     rgctxs = P64(ptr + 0x78)
                 };
 
-                codeGenModules[name] = module;
+                ulong[] pointers;
                 try
                 {
-                    codeGenModuleMethodPointers[name] = P64Array(module.methodPointers, module.methodPointerCount);
+                    pointers = P64Array(module.methodPointers, module.methodPointerCount);
                 }
                 catch (EndOfStreamException)
                 {
-                    codeGenModuleMethodPointers[name] = new ulong[checked((int)module.methodPointerCount)];
+                    pointers = new ulong[checked((int)module.methodPointerCount)];
                 }
-                rgctxsDictionary[name] = new();
+
+                void AddModuleAlias(string alias)
+                {
+                    if (string.IsNullOrWhiteSpace(alias))
+                        return;
+                    codeGenModules[alias] = module;
+                    codeGenModuleMethodPointers[alias] = pointers;
+                    if (!rgctxsDictionary.ContainsKey(alias))
+                        rgctxsDictionary[alias] = new();
+                }
+
+                AddModuleAlias(name);
+                if (name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+                    AddModuleAlias(name[..^4]);
+                else
+                    AddModuleAlias(name + ".dll");
             }
 
             methodSpecs = new Il2CppMethodSpec[pMetadataRegistration.methodSpecsCount];

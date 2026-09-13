@@ -256,13 +256,27 @@ class ImageDef:
 
 
 class ProtectedMetadata:
-    def __init__(self, elf: ELF64, metadata_va: int, code_reg_va: int, metadata_reg_va: int):
+    def __init__(
+        self,
+        elf: ELF64,
+        metadata_va: int,
+        code_reg_va: int,
+        metadata_reg_va: int,
+        string_literal_offsets_field: int = 0x160,
+        string_literal_data_field: int = 0x138,
+        string_literal_count_field: int = 0x0FC,
+        string_literal_offsets_count_field: int = 0x044,
+    ):
         self.elf = elf
         self.base = metadata_va
         self.code_reg = code_reg_va
         self.metadata_reg = metadata_reg_va
 
         self.string_off = self.h32(0x150)
+        self.string_literal_offsets_off = self.h32(string_literal_offsets_field)
+        self.string_literal_data_off = self.h32(string_literal_data_field)
+        self.string_literal_count = self.h32(string_literal_count_field)
+        self.string_literal_offsets_count = self.h32(string_literal_offsets_count_field)
 
         self.type_defs_off = self.h32(0x068)
         self.type_defs_size = self.h32(0x11C)
@@ -347,6 +361,13 @@ class ProtectedMetadata:
             return f"<bad-string:{index}>"
 
     def _validate_layout(self) -> None:
+        if self.string_literal_count < 0 or self.string_literal_offsets_count < 0:
+            raise ValueError("Invalid string literal counts")
+        if self.string_literal_offsets_count not in (self.string_literal_count, self.string_literal_count + 1):
+            raise ValueError(
+                f"String literal layout mismatch: count={self.string_literal_count}, "
+                f"offsets={self.string_literal_offsets_count}"
+            )
         expected = {
             "TypeDefinition": (self.type_def_entry_size, 82),
             "FieldDefinition": (self.field_entry_size, 12),
@@ -362,6 +383,42 @@ class ProtectedMetadata:
                 bad.append(f"{name}: got {got}, expected {want}")
         if bad:
             raise ValueError("Layout mismatch: " + "; ".join(bad))
+
+    def read_string_literals(self) -> list[bytes]:
+        count = self.string_literal_count
+        if count == 0:
+            return []
+
+        offset_count = self.string_literal_offsets_count
+        if offset_count == count:
+            offset_count += 1
+
+        offsets = [
+            self.elf.u32(self.base + self.string_literal_offsets_off + i * 4)
+            for i in range(offset_count)
+        ]
+
+        if len(offsets) < count + 1:
+            raise ValueError("String literal offset table is truncated")
+        if offsets[0] != 0:
+            raise ValueError(f"Unexpected first string literal offset: {offsets[0]}")
+
+        previous = 0
+        for value in offsets:
+            if value < previous:
+                raise ValueError("String literal offsets are not monotonic")
+            previous = value
+
+        data_size = offsets[count]
+        data = self.elf.read(self.base + self.string_literal_data_off, data_size)
+        result = []
+        for i in range(count):
+            start = offsets[i]
+            end = offsets[i + 1]
+            if end > len(data):
+                raise ValueError(f"String literal {i} exceeds literal data")
+            result.append(data[start:end])
+        return result
 
     def parse_type_def(self, index: int) -> TypeDef:
         va = self.base + self.type_defs_off + index * self.type_def_entry_size
@@ -1231,9 +1288,17 @@ def rebuild_global_metadata_v31(md: ProtectedMetadata) -> tuple[bytes, dict]:
         "exportedTypeDefinitions",
     ]
 
+    protected_string_literals = md.read_string_literals()
+    string_literal_blob = bytearray()
+    string_literal_data_blob = bytearray()
+    for raw in protected_string_literals:
+        data_index = len(string_literal_data_blob)
+        string_literal_data_blob.extend(raw)
+        string_literal_blob += struct.pack("<II", len(raw), data_index)
+
     sections: dict[str, bytes] = {
-        "stringLiteral": b"",
-        "stringLiteralData": b"",
+        "stringLiteral": bytes(string_literal_blob),
+        "stringLiteralData": bytes(string_literal_data_blob),
         "string": bytes(string_heap),
         "events": bytes(event_blob),
         "properties": bytes(property_blob),
@@ -1316,6 +1381,7 @@ def rebuild_global_metadata_v31(md: ProtectedMetadata) -> tuple[bytes, dict]:
             "Core protected metadata reconstructed into canonical v31 record order.",
             "returnParameterToken recovered from protected MethodDefinition auxiliary DWORD.",
             "declaringType converted from protected TypeIndex to canonical TypeDefinitionIndex.",
+            "Protected string literals reconstructed into canonical Il2CppStringLiteral records.",
             "Optional default-value/custom-attribute/WinRT/exported-type sections are empty in this stage.",
             "Stock Il2CppDumper metadata parsing should accept this file; binary registration remains custom/shuffled.",
         ],
@@ -1333,10 +1399,23 @@ def main() -> None:
     parser.add_argument("--metadata-va", type=parse_int, default=DEFAULT_METADATA_VA)
     parser.add_argument("--code-reg-va", type=parse_int, default=DEFAULT_CODE_REG_VA)
     parser.add_argument("--metadata-reg-va", type=parse_int, default=DEFAULT_METADATA_REG_VA)
+    parser.add_argument("--string-literal-offsets-field", type=parse_int, default=0x160)
+    parser.add_argument("--string-literal-data-field", type=parse_int, default=0x138)
+    parser.add_argument("--string-literal-count-field", type=parse_int, default=0x0FC)
+    parser.add_argument("--string-literal-offsets-count-field", type=parse_int, default=0x044)
     args = parser.parse_args()
 
     elf = ELF64(args.lib)
-    metadata = ProtectedMetadata(elf, args.metadata_va, args.code_reg_va, args.metadata_reg_va)
+    metadata = ProtectedMetadata(
+        elf,
+        args.metadata_va,
+        args.code_reg_va,
+        args.metadata_reg_va,
+        args.string_literal_offsets_field,
+        args.string_literal_data_field,
+        args.string_literal_count_field,
+        args.string_literal_offsets_count_field,
+    )
     metadata.load_all()
     rebuilt, _ = rebuild_global_metadata_v31(metadata)
     args.out.mkdir(parents=True, exist_ok=True)

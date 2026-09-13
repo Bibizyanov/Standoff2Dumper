@@ -202,8 +202,8 @@ namespace Il2CppDumper
             if (Version >= 24.2)
             {
                 var pCodeGenModules = MapVATR<ulong>(pCodeRegistration.codeGenModules, pCodeRegistration.codeGenModulesCount);
-                codeGenModules = new Dictionary<string, Il2CppCodeGenModule>(pCodeGenModules.Length, StringComparer.Ordinal);
-                codeGenModuleMethodPointers = new Dictionary<string, ulong[]>(pCodeGenModules.Length, StringComparer.Ordinal);
+                codeGenModules = new Dictionary<string, Il2CppCodeGenModule>(pCodeGenModules.Length, StringComparer.OrdinalIgnoreCase);
+                codeGenModuleMethodPointers = new Dictionary<string, ulong[]>(pCodeGenModules.Length, StringComparer.OrdinalIgnoreCase);
                 rgctxsDictionary = new Dictionary<string, Dictionary<uint, Il2CppRGCTXDefinition[]>>(pCodeGenModules.Length, StringComparer.Ordinal);
                 foreach (var pCodeGenModule in pCodeGenModules)
                 {
@@ -320,22 +320,81 @@ namespace Il2CppDumper
             return type;
         }
 
+        private static IEnumerable<string> GetImageNameCandidates(string imageName)
+        {
+            if (string.IsNullOrWhiteSpace(imageName))
+            {
+                yield break;
+            }
+            yield return imageName;
+            if (imageName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return imageName[..^4];
+            }
+            else
+            {
+                yield return imageName + ".dll";
+            }
+        }
+
+        public bool TryGetCodeGenModule(string imageName, out Il2CppCodeGenModule module)
+        {
+            foreach (var candidate in GetImageNameCandidates(imageName))
+            {
+                if (codeGenModules != null && codeGenModules.TryGetValue(candidate, out module))
+                {
+                    return true;
+                }
+            }
+            module = null;
+            return false;
+        }
+
+        public bool TryGetMethodPointers(string imageName, out ulong[] pointers)
+        {
+            foreach (var candidate in GetImageNameCandidates(imageName))
+            {
+                if (codeGenModuleMethodPointers != null && codeGenModuleMethodPointers.TryGetValue(candidate, out pointers))
+                {
+                    return true;
+                }
+            }
+            pointers = null;
+            return false;
+        }
+
+        public bool TryGetRGCTXData(string imageName, out Dictionary<uint, Il2CppRGCTXDefinition[]> rgctxs)
+        {
+            foreach (var candidate in GetImageNameCandidates(imageName))
+            {
+                if (rgctxsDictionary != null && rgctxsDictionary.TryGetValue(candidate, out rgctxs))
+                {
+                    return true;
+                }
+            }
+            rgctxs = null;
+            return false;
+        }
+
         public ulong GetMethodPointer(string imageName, Il2CppMethodDefinition methodDef)
         {
             if (Version >= 24.2)
             {
-                var methodToken = methodDef.token;
-                var ptrs = codeGenModuleMethodPointers[imageName];
-                var methodPointerIndex = methodToken & 0x00FFFFFFu;
+                if (!TryGetMethodPointers(imageName, out var ptrs))
+                {
+                    return 0;
+                }
+                var methodPointerIndex = methodDef.token & 0x00FFFFFFu;
+                if (methodPointerIndex == 0 || methodPointerIndex > ptrs.Length)
+                {
+                    return 0;
+                }
                 return ptrs[methodPointerIndex - 1];
             }
-            else
+            var methodIndex = methodDef.methodIndex;
+            if (methodIndex >= 0 && methodPointers != null && methodIndex < methodPointers.Length)
             {
-                var methodIndex = methodDef.methodIndex;
-                if (methodIndex >= 0)
-                {
-                    return methodPointers[methodIndex];
-                }
+                return methodPointers[methodIndex];
             }
             return 0;
         }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -186,6 +186,15 @@ namespace Il2CppDumper
 
                 structGenerator.WriteScript(
                     outputDir
+                );
+            }
+
+            if (config.GenerateDummyDll)
+            {
+                DummyAssemblyExporter.Export(
+                    executor,
+                    outputDir,
+                    config.DummyDllAddToken
                 );
             }
 

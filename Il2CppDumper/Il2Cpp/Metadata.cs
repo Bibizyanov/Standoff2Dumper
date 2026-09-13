@@ -208,9 +208,24 @@ namespace Il2CppDumper
 
         public string GetStringLiteralFromIndex(uint index)
         {
+            if (index >= stringLiterals.Length)
+            {
+                return string.Empty;
+            }
+            if (stringCache.TryGetValue(0x80000000u | index, out var cached))
+            {
+                return cached;
+            }
             var stringLiteral = stringLiterals[index];
+            var end = (ulong)stringLiteral.dataIndex + stringLiteral.length;
+            if (end > (ulong)header.stringLiteralDataSize)
+            {
+                return string.Empty;
+            }
             Position = (uint)(header.stringLiteralDataOffset + stringLiteral.dataIndex);
-            return Encoding.UTF8.GetString(ReadBytes((int)stringLiteral.length));
+            var value = Encoding.UTF8.GetString(ReadBytes((int)stringLiteral.length));
+            stringCache[0x80000000u | index] = value;
+            return value;
         }
 
         private void ProcessingMetadataUsage()

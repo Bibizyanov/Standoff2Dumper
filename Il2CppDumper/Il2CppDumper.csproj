@@ -7,6 +7,9 @@
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Mono.Cecil" Version="0.11.4" />
+  </ItemGroup>
+  <ItemGroup>
     <None Update="config.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

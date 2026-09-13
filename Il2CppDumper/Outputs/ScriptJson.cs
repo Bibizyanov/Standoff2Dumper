@@ -21,6 +21,7 @@ namespace Il2CppDumper
 
     public class ScriptString
     {
+        public uint Index;
         public ulong Address;
         public string Value;
     }
