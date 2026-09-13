@@ -1,0 +1,14 @@
+{
+  "DumpMethod": true,
+  "DumpField": true,
+  "DumpProperty": true,
+  "DumpAttribute": false,
+  "DumpFieldOffset": true,
+  "DumpMethodOffset": true,
+  "DumpTypeDefIndex": true,
+  "GenerateStruct": true,
+  "ProtectedMetadataVA": "0x1B60480",
+  "ProtectedCodeRegistration": "0xB7C32E0",
+  "ProtectedMetadataRegistration": "0xB7C3358",
+  "PythonExecutable": "python"
+}
