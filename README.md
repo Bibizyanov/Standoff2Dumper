@@ -3,14 +3,14 @@
 - Actual Version 0.39.4
 - Make: dump.cs stringliteral.json script.json il2cpp.h + dlls
 
-#RU
+##RU
 Сборка рассчитана на текущую версию libunity.so 0.39.4 x64. после обновления все филды в пизду летят.
 
 Запуск: Il2CppDumper.exe libunity.so
 
 Все че над тут -  Il2CppDumper/config.json
 
-#EN
+##EN
 Build maked for actual version OBT of Standoff2 libunity.so 0.39.4 x64. After update all fields resets.
 
 Start: Il2CppDumper.exe libunity.so
