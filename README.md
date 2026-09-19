@@ -68,7 +68,6 @@ DLLs
 
 ## Авторы / Credits
 
-Сайт проекта: **[axent.cc](https://axent.cc)**
 Project Website: **[axent.cc](https://axent.cc)**
 Developed & Supported by Bibizyanov, Alogen.
 Thanks Michael for publication old decryptor.
