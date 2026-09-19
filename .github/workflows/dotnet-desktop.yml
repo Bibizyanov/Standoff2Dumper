@@ -13,6 +13,7 @@ jobs:
     strategy:
       matrix:
         configuration: [Debug, Release]
+        framework: [net6.0, net7.0] # Добавлена матрица для фреймворков
 
     runs-on: windows-latest 
 
@@ -34,10 +35,12 @@ jobs:
       run: dotnet restore ${{ env.Solution_Name }}
 
     - name: Build and Publish
-      run: dotnet publish ${{ env.Solution_Name }} -c ${{ matrix.configuration }} -o ./publish
+      # Публикуем напрямую .csproj, подставляя фреймворк из матрицы
+      run: dotnet publish Il2CppDumper/Il2CppDumper.csproj -c ${{ matrix.configuration }} -f ${{ matrix.framework }} -o ./publish/${{ matrix.framework }}
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: Il2CppDumper-Build-${{ matrix.configuration }}
-        path: ./publish
+        # В имени артефакта теперь будет указана версия фреймворка
+        name: Il2CppDumper-Build-${{ matrix.configuration }}-${{ matrix.framework }}
+        path: ./publish/${{ matrix.framework }}
