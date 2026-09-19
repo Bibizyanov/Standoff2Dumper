@@ -1,4 +1,4 @@
-# Standoff 2 Dumper 0.39.4 x64 (armv8a Android)
+# Standoff 2 Dumper 0.39.4 x64 (arm-v8a Android)
 
 # ⚠️ ВАЖНО, ВАМ НЕ НУЖНА МЕТАДАТА, ОНА ДОСТАЕТСЯ ПАЙТОН СКРИПТОМ. ⚠️
 
