@@ -2,7 +2,6 @@
 
 # ⚠️ ВАЖНО, ВАМ НЕ НУЖНА МЕТАДАТА, ОНА ДОСТАЕТСЯ ПАЙТОН СКРИПТОМ. ⚠️
 
-# Реализовал сообственно сайт axent.cc 
 ## RU
 
 **Standoff 2 Dumper / Il2CppDumper для версии 0.39.4 64bit.**
@@ -67,6 +66,14 @@ il2cpp.h
 DLLs
 ```
 
+## Авторы / Credits
+
+Сайт проекта: **[axent.cc](https://axent.cc)**
+Project Website: **[axent.cc](https://axent.cc)**
+Developed & Supported by Bibizyanov, Alogen.
+Thanks Michael for publication old decryptor.
+
+[![Website](https://img.shields.io/badge/Website-axent.cc-blue?style=flat-square)](https://axent.cc)
 ## Keywords
 
 Standoff 2 Dumper, Standoff2 Dumper, Standoff 2 Il2CppDumper, Standoff2 Il2CppDumper, Standoff 2 0.39.4, Standoff2 0.39.4, libunity.so, libunity.so x64, dump.cs, script.json, stringliteral.json, il2cpp.h, Standoff 2 dump, Standoff2 dump
