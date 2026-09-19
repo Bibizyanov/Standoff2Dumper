@@ -1,12 +1,12 @@
-# Standoff 2 Dumper 0.39.4 x64
+# Standoff 2 Dumper 0.39.4 x64 (armv8a Android)
 
 # ⚠️ ВАЖНО, ВАМ НЕ НУЖНА МЕТАДАТА, ОНА ДОСТАЕТСЯ ПАЙТОН СКРИПТОМ. ⚠️
 
 ## RU
 
-**Standoff 2 Dumper / Il2CppDumper для версии 0.39.4 x64.**
+**Standoff 2 Dumper / Il2CppDumper для версии 0.39.4 64bit.**
 
-Сборка рассчитана на текущую версию **Standoff 2 0.39.4** и `libunity.so` x64.
+Сборка рассчитана на текущую версию **Standoff 2 0.39.4** и `libunity.so` 64bit.
 
 После обновления игры адреса, offsets и fields могут измениться, поэтому дамп необходимо создавать заново под актуальную версию.
 
@@ -37,9 +37,9 @@ DLLs
 
 ## EN
 
-**Standoff 2 Dumper / Il2CppDumper for version 0.39.4 x64.**
+**Standoff 2 Dumper / Il2CppDumper for version 0.39.4 64bit.**
 
-This build is made for the current **Standoff 2 0.39.4** `libunity.so` x64 version.
+This build is made for the current **Standoff 2 0.39.4** `libunity.so` 64bit version.
 
 After a game update, offsets, fields and addresses may change, so a new dump may be required for the updated version.
 
