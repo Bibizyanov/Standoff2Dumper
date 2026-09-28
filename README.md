@@ -1,4 +1,4 @@
-# Standoff 2 Dumper 0.39.4 x64 (arm-v8a Android).
+# Not updated for Remaster 1.0.
 
 # ⚠️ ВАЖНО, ВАМ НЕ НУЖНА МЕТАДАТА, ОНА ДОСТАЕТСЯ ПАЙТОН СКРИПТОМ. ⚠️
 
