@@ -1,12 +1,12 @@
-# Not updated for Remaster 1.0.
+# Updated for Remaster 1.0.0 64bit
 
 # ⚠️ ВАЖНО, ВАМ НЕ НУЖНА МЕТАДАТА, ОНА ДОСТАЕТСЯ ПАЙТОН СКРИПТОМ. ⚠️
 
 ## RU
 
-**Standoff 2 Dumper / Il2CppDumper для версии 0.39.4 64bit.**
+**Standoff 2 Dumper / Il2CppDumper для версии 1.0.0 64bit.**
 
-Сборка рассчитана на текущую версию **Standoff 2 0.39.4** и `libunity.so` 64bit.
+Сборка рассчитана на текущую версию **Standoff 2 1.0.0** и `libunity.so` 64bit.
 
 После обновления игры адреса, offsets и fields могут измениться, поэтому дамп необходимо создавать заново под актуальную версию.
 
@@ -37,9 +37,9 @@ DLLs
 
 ## EN
 
-**Standoff 2 Dumper / Il2CppDumper for version 0.39.4 64bit.**
+**Standoff 2 Dumper / Il2CppDumper for version 1.0.0 64bit.**
 
-This build is made for the current **Standoff 2 0.39.4** `libunity.so` 64bit version.
+This build is made for the current **Standoff 2 1.0.0** `libunity.so` 64bit version.
 
 After a game update, offsets, fields and addresses may change, so a new dump may be required for the updated version.
 
