@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 
@@ -75,7 +76,7 @@ namespace Il2CppDumper
 
             try
             {
-                var metadataPath =
+                var rebuilt =
                     ProtectedMetadataRebuilder.Rebuild(
                         binaryPath,
                         outputDir,
@@ -83,8 +84,8 @@ namespace Il2CppDumper
                     );
 
                 Init(
-                    binaryPath,
-                    metadataPath,
+                    rebuilt.BinaryPath,
+                    rebuilt.MetadataPath,
                     out var metadata,
                     out var il2Cpp
                 );
@@ -146,10 +147,12 @@ namespace Il2CppDumper
                 metadata.metadataUsagesCount
             );
 
-            il2Cpp.InitProtected(
-                Hex(config.ProtectedCodeRegistration),
-                Hex(config.ProtectedMetadataRegistration)
-            );
+            Console.WriteLine("Searching rebuilt stock registrations...");
+            var methodCount = metadata.methodDefs.Count(x => x.methodIndex >= 0);
+            if (!il2Cpp.PlusSearch(methodCount, metadata.typeDefs.Length, metadata.imageDefs.Length))
+            {
+                throw new InvalidDataException("Stock CodeRegistration/MetadataRegistration not found in rebuilt libunity.so");
+            }
         }
 
         private static void Dump(

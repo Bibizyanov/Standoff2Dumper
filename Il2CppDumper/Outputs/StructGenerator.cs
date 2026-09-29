@@ -39,6 +39,38 @@ namespace Il2CppDumper
             il2Cpp = il2CppExecutor.il2Cpp;
         }
 
+        private bool IsTrustedLiteralField(int fieldIndex, Il2CppType fieldType)
+        {
+            if ((fieldType.attrs & FIELD_ATTRIBUTE_LITERAL) == 0)
+                return false;
+
+            if (!metadata.GetFieldDefaultValueFromIndex(fieldIndex, out var defaultValue) ||
+                defaultValue.dataIndex < 0)
+                return false;
+
+            switch (fieldType.type)
+            {
+                case Il2CppTypeEnum.IL2CPP_TYPE_BOOLEAN:
+                case Il2CppTypeEnum.IL2CPP_TYPE_CHAR:
+                case Il2CppTypeEnum.IL2CPP_TYPE_I1:
+                case Il2CppTypeEnum.IL2CPP_TYPE_U1:
+                case Il2CppTypeEnum.IL2CPP_TYPE_I2:
+                case Il2CppTypeEnum.IL2CPP_TYPE_U2:
+                case Il2CppTypeEnum.IL2CPP_TYPE_I4:
+                case Il2CppTypeEnum.IL2CPP_TYPE_U4:
+                case Il2CppTypeEnum.IL2CPP_TYPE_I8:
+                case Il2CppTypeEnum.IL2CPP_TYPE_U8:
+                case Il2CppTypeEnum.IL2CPP_TYPE_R4:
+                case Il2CppTypeEnum.IL2CPP_TYPE_R8:
+                case Il2CppTypeEnum.IL2CPP_TYPE_STRING:
+                    return true;
+                case Il2CppTypeEnum.IL2CPP_TYPE_VALUETYPE:
+                    return executor.GetTypeDefinitionFromIl2CppType(fieldType)?.IsEnum == true;
+                default:
+                    return false;
+            }
+        }
+
         public void WriteScript(string outputDir)
         {
             var json = new ScriptJson();
@@ -770,7 +802,7 @@ namespace Il2CppDumper
                 {
                     var fieldDef = metadata.fieldDefs[i];
                     var fieldType = il2Cpp.types[fieldDef.typeIndex];
-                    if ((fieldType.attrs & FIELD_ATTRIBUTE_LITERAL) != 0)
+                    if (IsTrustedLiteralField(i, fieldType))
                     {
                         continue;
                     }

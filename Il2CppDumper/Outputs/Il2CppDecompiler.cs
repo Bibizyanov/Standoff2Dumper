@@ -22,6 +22,41 @@ namespace Il2CppDumper
             methodModifiers = new();
         }
 
+        // Protected v31 builds can carry garbage FIELD_ATTRIBUTE_LITERAL bits in
+        // Il2CppType.attrs. Trust `const` only when metadata also contains a real
+        // field-default entry and the CLR type is legal for a literal constant.
+        private bool IsTrustedLiteralField(int fieldIndex, Il2CppType fieldType)
+        {
+            if ((fieldType.attrs & FIELD_ATTRIBUTE_LITERAL) == 0)
+                return false;
+
+            if (!metadata.GetFieldDefaultValueFromIndex(fieldIndex, out var defaultValue) ||
+                defaultValue.dataIndex < 0)
+                return false;
+
+            switch (fieldType.type)
+            {
+                case Il2CppTypeEnum.IL2CPP_TYPE_BOOLEAN:
+                case Il2CppTypeEnum.IL2CPP_TYPE_CHAR:
+                case Il2CppTypeEnum.IL2CPP_TYPE_I1:
+                case Il2CppTypeEnum.IL2CPP_TYPE_U1:
+                case Il2CppTypeEnum.IL2CPP_TYPE_I2:
+                case Il2CppTypeEnum.IL2CPP_TYPE_U2:
+                case Il2CppTypeEnum.IL2CPP_TYPE_I4:
+                case Il2CppTypeEnum.IL2CPP_TYPE_U4:
+                case Il2CppTypeEnum.IL2CPP_TYPE_I8:
+                case Il2CppTypeEnum.IL2CPP_TYPE_U8:
+                case Il2CppTypeEnum.IL2CPP_TYPE_R4:
+                case Il2CppTypeEnum.IL2CPP_TYPE_R8:
+                case Il2CppTypeEnum.IL2CPP_TYPE_STRING:
+                    return true;
+                case Il2CppTypeEnum.IL2CPP_TYPE_VALUETYPE:
+                    return executor.GetTypeDefinitionFromIl2CppType(fieldType)?.IsEnum == true;
+                default:
+                    return false;
+            }
+        }
+
         public void Decompile(Config config, string outputDir)
         {
             var writer = new StreamWriter(new FileStream(outputDir + "dump.cs", FileMode.Create), new UTF8Encoding(false));
@@ -146,7 +181,7 @@ namespace Il2CppDumper
                                         writer.Write("protected internal ");
                                         break;
                                 }
-                                if ((fieldType.attrs & FIELD_ATTRIBUTE_LITERAL) != 0)
+                                if (IsTrustedLiteralField(i, fieldType))
                                 {
                                     isConst = true;
                                     writer.Write("const ");

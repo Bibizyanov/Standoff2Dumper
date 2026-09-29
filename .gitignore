@@ -1,4 +1,4 @@
-﻿# Visual Studio
+# Visual Studio
 .vs/
 *.user
 *.suo
@@ -11,3 +11,7 @@
 
 # Dump output
 dump/
+
+# Python
+__pycache__/
+*.pyc

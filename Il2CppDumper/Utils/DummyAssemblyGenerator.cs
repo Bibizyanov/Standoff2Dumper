@@ -137,7 +137,7 @@ namespace Il2CppDumper
                                 name = $"Type_{index}";
 
                             var attrs = (TypeAttributes)td.flags;
-                            var baseType = module.TypeSystem?.Object;
+                            var baseType = GetSystemType(module, typeof(object));
                             if (baseType == null)
                                 continue;
 
@@ -219,7 +219,7 @@ namespace Il2CppDumper
                 if (td.parentIndex >= 0)
                     type.BaseType = ResolveType(td.parentIndex, module, type, null);
                 else if (td.IsValueType && type.FullName != "System.Enum")
-                    type.BaseType = module.TypeSystem.Object;
+                    type.BaseType = GetSystemType(module, typeof(object));
 
                 for (int i = 0; i < td.interfaces_count; i++)
                 {
@@ -237,7 +237,7 @@ namespace Il2CppDumper
                     if (metadata.fieldDefs == null || (uint)fieldIndex >= (uint)metadata.fieldDefs.Length)
                         continue;
                     var fd = metadata.fieldDefs[fieldIndex];
-                    var fieldType = ResolveType(fd.typeIndex, module, type, null) ?? module.TypeSystem.Object;
+                    var fieldType = ResolveType(fd.typeIndex, module, type, null) ?? GetSystemType(module, typeof(object));
                     var attrs = FieldAttributes.Public;
                     try { attrs = (FieldAttributes)il2Cpp.types[fd.typeIndex].attrs; } catch { }
                     var field = new FieldDefinition(GetMetadataString(fd.nameIndex, $"field_{fieldIndex}"), attrs, fieldType);
@@ -250,19 +250,19 @@ namespace Il2CppDumper
                     if (metadata.methodDefs == null || (uint)methodIndex >= (uint)metadata.methodDefs.Length)
                         continue;
                     var md = metadata.methodDefs[methodIndex];
-                    var method = new MethodDefinition(GetMetadataString(md.nameIndex, $"Method_{methodIndex}"), (MethodAttributes)md.flags, module.TypeSystem.Void)
+                    var method = new MethodDefinition(GetMetadataString(md.nameIndex, $"Method_{methodIndex}"), (MethodAttributes)md.flags, GetSystemType(module, typeof(void)))
                     {
                         ImplAttributes = (MethodImplAttributes)md.iflags
                     };
                     AddGenericParameters(method, md.genericContainerIndex);
-                    method.ReturnType = ResolveType(md.returnType, module, type, method) ?? module.TypeSystem.Object;
+                    method.ReturnType = ResolveType(md.returnType, module, type, method) ?? GetSystemType(module, typeof(object));
                     for (int p = 0; p < md.parameterCount; p++)
                     {
                         int parameterIndex = md.parameterStart + p;
                         if (metadata.parameterDefs == null || (uint)parameterIndex >= (uint)metadata.parameterDefs.Length)
                             continue;
                         var pd = metadata.parameterDefs[parameterIndex];
-                        var pt = ResolveType(pd.typeIndex, module, type, method) ?? module.TypeSystem.Object;
+                        var pt = ResolveType(pd.typeIndex, module, type, method) ?? GetSystemType(module, typeof(object));
                         var parameter = new ParameterDefinition(GetMetadataString(pd.nameIndex, $"param_{p}"), ParameterAttributes.None, pt);
                         method.Parameters.Add(parameter);
                     }
@@ -280,7 +280,7 @@ namespace Il2CppDumper
                     MethodDefinition get = null, set = null;
                     if (pd.get >= 0) methodMap.TryGetValue(td.methodStart + pd.get, out get);
                     if (pd.set >= 0) methodMap.TryGetValue(td.methodStart + pd.set, out set);
-                    var propType = get?.ReturnType ?? (set != null && set.Parameters.Count > 0 ? set.Parameters[^1].ParameterType : module.TypeSystem.Object);
+                    var propType = get?.ReturnType ?? (set != null && set.Parameters.Count > 0 ? set.Parameters[^1].ParameterType : GetSystemType(module, typeof(object)));
                     var prop = new PropertyDefinition(GetMetadataString(pd.nameIndex, $"Property_{propIndex}"), (PropertyAttributes)pd.attrs, propType)
                     {
                         GetMethod = get,
@@ -295,7 +295,7 @@ namespace Il2CppDumper
                     if (metadata.eventDefs == null || (uint)eventIndex >= (uint)metadata.eventDefs.Length)
                         continue;
                     var ed = metadata.eventDefs[eventIndex];
-                    var ev = new EventDefinition(GetMetadataString(ed.nameIndex, $"Event_{eventIndex}"), EventAttributes.None, ResolveType(ed.typeIndex, module, type, null) ?? module.TypeSystem.Object);
+                    var ev = new EventDefinition(GetMetadataString(ed.nameIndex, $"Event_{eventIndex}"), EventAttributes.None, ResolveType(ed.typeIndex, module, type, null) ?? GetSystemType(module, typeof(object)));
                     if (ed.add >= 0 && methodMap.TryGetValue(td.methodStart + ed.add, out var addMethod)) ev.AddMethod = addMethod;
                     if (ed.remove >= 0 && methodMap.TryGetValue(td.methodStart + ed.remove, out var removeMethod)) ev.RemoveMethod = removeMethod;
                     if (ed.raise >= 0 && methodMap.TryGetValue(td.methodStart + ed.raise, out var raiseMethod)) ev.InvokeMethod = raiseMethod;
@@ -333,46 +333,46 @@ namespace Il2CppDumper
             try
             {
                 if (il2Cpp.types == null || (uint)typeIndex >= (uint)il2Cpp.types.Length)
-                    return module.TypeSystem.Object;
+                    return GetSystemType(module, typeof(object));
                 return ResolveIl2CppType(il2Cpp.types[typeIndex], module, declaringType, method);
             }
             catch
             {
-                return module.TypeSystem.Object;
+                return GetSystemType(module, typeof(object));
             }
         }
 
         private TypeReference ResolveIl2CppType(Il2CppType t, ModuleDefinition module, TypeDefinition declaringType, MethodDefinition method)
         {
             if (t == null)
-                return module.TypeSystem.Object;
+                return GetSystemType(module, typeof(object));
             switch (t.type)
             {
-                case Il2CppTypeEnum.IL2CPP_TYPE_VOID: return module.TypeSystem.Void;
-                case Il2CppTypeEnum.IL2CPP_TYPE_BOOLEAN: return module.TypeSystem.Boolean;
-                case Il2CppTypeEnum.IL2CPP_TYPE_CHAR: return module.TypeSystem.Char;
-                case Il2CppTypeEnum.IL2CPP_TYPE_I1: return module.TypeSystem.SByte;
-                case Il2CppTypeEnum.IL2CPP_TYPE_U1: return module.TypeSystem.Byte;
-                case Il2CppTypeEnum.IL2CPP_TYPE_I2: return module.TypeSystem.Int16;
-                case Il2CppTypeEnum.IL2CPP_TYPE_U2: return module.TypeSystem.UInt16;
-                case Il2CppTypeEnum.IL2CPP_TYPE_I4: return module.TypeSystem.Int32;
-                case Il2CppTypeEnum.IL2CPP_TYPE_U4: return module.TypeSystem.UInt32;
-                case Il2CppTypeEnum.IL2CPP_TYPE_I8: return module.TypeSystem.Int64;
-                case Il2CppTypeEnum.IL2CPP_TYPE_U8: return module.TypeSystem.UInt64;
-                case Il2CppTypeEnum.IL2CPP_TYPE_R4: return module.TypeSystem.Single;
-                case Il2CppTypeEnum.IL2CPP_TYPE_R8: return module.TypeSystem.Double;
-                case Il2CppTypeEnum.IL2CPP_TYPE_STRING: return module.TypeSystem.String;
-                case Il2CppTypeEnum.IL2CPP_TYPE_OBJECT: return module.TypeSystem.Object;
-                case Il2CppTypeEnum.IL2CPP_TYPE_I: return module.TypeSystem.IntPtr;
-                case Il2CppTypeEnum.IL2CPP_TYPE_U: return module.TypeSystem.UIntPtr;
+                case Il2CppTypeEnum.IL2CPP_TYPE_VOID: return GetSystemType(module, typeof(void));
+                case Il2CppTypeEnum.IL2CPP_TYPE_BOOLEAN: return GetSystemType(module, typeof(bool));
+                case Il2CppTypeEnum.IL2CPP_TYPE_CHAR: return GetSystemType(module, typeof(char));
+                case Il2CppTypeEnum.IL2CPP_TYPE_I1: return GetSystemType(module, typeof(sbyte));
+                case Il2CppTypeEnum.IL2CPP_TYPE_U1: return GetSystemType(module, typeof(byte));
+                case Il2CppTypeEnum.IL2CPP_TYPE_I2: return GetSystemType(module, typeof(short));
+                case Il2CppTypeEnum.IL2CPP_TYPE_U2: return GetSystemType(module, typeof(ushort));
+                case Il2CppTypeEnum.IL2CPP_TYPE_I4: return GetSystemType(module, typeof(int));
+                case Il2CppTypeEnum.IL2CPP_TYPE_U4: return GetSystemType(module, typeof(uint));
+                case Il2CppTypeEnum.IL2CPP_TYPE_I8: return GetSystemType(module, typeof(long));
+                case Il2CppTypeEnum.IL2CPP_TYPE_U8: return GetSystemType(module, typeof(ulong));
+                case Il2CppTypeEnum.IL2CPP_TYPE_R4: return GetSystemType(module, typeof(float));
+                case Il2CppTypeEnum.IL2CPP_TYPE_R8: return GetSystemType(module, typeof(double));
+                case Il2CppTypeEnum.IL2CPP_TYPE_STRING: return GetSystemType(module, typeof(string));
+                case Il2CppTypeEnum.IL2CPP_TYPE_OBJECT: return GetSystemType(module, typeof(object));
+                case Il2CppTypeEnum.IL2CPP_TYPE_I: return GetSystemType(module, typeof(IntPtr));
+                case Il2CppTypeEnum.IL2CPP_TYPE_U: return GetSystemType(module, typeof(UIntPtr));
                 case Il2CppTypeEnum.IL2CPP_TYPE_TYPEDBYREF: return module.ImportReference(typeof(TypedReference));
                 case Il2CppTypeEnum.IL2CPP_TYPE_CLASS:
                 case Il2CppTypeEnum.IL2CPP_TYPE_VALUETYPE:
                     {
                         var td = executor.GetTypeDefinitionFromIl2CppType(t);
-                        if (td == null) return module.TypeSystem.Object;
+                        if (td == null) return GetSystemType(module, typeof(object));
                         int idx = Array.IndexOf(metadata.typeDefs, td);
-                        return idx >= 0 && typeMap.TryGetValue(idx, out var def) ? module.ImportReference(def) : module.TypeSystem.Object;
+                        return idx >= 0 && typeMap.TryGetValue(idx, out var def) ? module.ImportReference(def) : GetSystemType(module, typeof(object));
                     }
                 case Il2CppTypeEnum.IL2CPP_TYPE_SZARRAY:
                     return new ArrayType(ResolveIl2CppType(il2Cpp.GetIl2CppType(t.data.type), module, declaringType, method));
@@ -383,7 +383,7 @@ namespace Il2CppDumper
                 case Il2CppTypeEnum.IL2CPP_TYPE_ARRAY:
                     {
                         var at = il2Cpp.MapVATR<Il2CppArrayType>(t.data.array);
-                        if (at == null) return new ArrayType(module.TypeSystem.Object);
+                        if (at == null) return new ArrayType(GetSystemType(module, typeof(object)));
                         var et = ResolveIl2CppType(il2Cpp.GetIl2CppType(at.etype), module, declaringType, method);
                         return new ArrayType(et, Math.Max((int)at.rank, 1));
                     }
@@ -396,16 +396,16 @@ namespace Il2CppDumper
                             return method.GenericParameters[num];
                         if (declaringType != null && num < declaringType.GenericParameters.Count)
                             return declaringType.GenericParameters[num];
-                        return module.TypeSystem.Object;
+                        return GetSystemType(module, typeof(object));
                     }
                 case Il2CppTypeEnum.IL2CPP_TYPE_GENERICINST:
                     {
                         var gc = il2Cpp.MapVATR<Il2CppGenericClass>(t.data.generic_class);
-                        if (gc == null) return module.TypeSystem.Object;
+                        if (gc == null) return GetSystemType(module, typeof(object));
                         var td = executor.GetGenericClassTypeDefinition(gc);
-                        if (td == null) return module.TypeSystem.Object;
+                        if (td == null) return GetSystemType(module, typeof(object));
                         int idx = Array.IndexOf(metadata.typeDefs, td);
-                        if (idx < 0 || !typeMap.TryGetValue(idx, out var def)) return module.TypeSystem.Object;
+                        if (idx < 0 || !typeMap.TryGetValue(idx, out var def)) return GetSystemType(module, typeof(object));
                         var gi = new GenericInstanceType(module.ImportReference(def));
                         var inst = il2Cpp.MapVATR<Il2CppGenericInst>(gc.context.class_inst);
                         if (inst == null || inst.type_argc <= 0 || inst.type_argv == 0) return gi;
@@ -416,7 +416,38 @@ namespace Il2CppDumper
                         return gi;
                     }
                 default:
-                    return module.TypeSystem.Object;
+                    return GetSystemType(module, typeof(object));
+            }
+        }
+
+        private static TypeReference GetSystemType(ModuleDefinition module, Type runtimeType)
+        {
+            if (module == null || runtimeType == null)
+                return null;
+
+            // Do not touch ModuleDefinition.TypeSystem here. Some rebuilt/protected
+            // assemblies can have an incomplete corlib scope while dummy types are
+            // being created; TypeSystem.Object then throws NullReferenceException.
+            // Importing the CLR type directly lets Cecil create/use the proper
+            // corlib reference without relying on that partially initialized state.
+            try
+            {
+                return module.ImportReference(runtimeType);
+            }
+            catch
+            {
+                try
+                {
+                    return new TypeReference(
+                        runtimeType.Namespace ?? string.Empty,
+                        runtimeType.Name,
+                        module,
+                        module);
+                }
+                catch
+                {
+                    return null;
+                }
             }
         }
 
