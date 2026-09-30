@@ -43,6 +43,64 @@ namespace Il2CppDumper
             }
         }
 
+        private bool IsTrustedLiteralField(int fieldIndex, int typeIndex)
+        {
+            try
+            {
+                if (il2Cpp.types == null || (uint)typeIndex >= (uint)il2Cpp.types.Length)
+                    return false;
+                var t = il2Cpp.types[typeIndex];
+                if (t == null || (t.attrs & Il2CppConstants.FIELD_ATTRIBUTE_LITERAL) == 0)
+                    return false;
+                if (!metadata.GetFieldDefaultValueFromIndex(fieldIndex, out _))
+                    return false;
+
+                switch (t.type)
+                {
+                    case Il2CppTypeEnum.IL2CPP_TYPE_BOOLEAN:
+                    case Il2CppTypeEnum.IL2CPP_TYPE_CHAR:
+                    case Il2CppTypeEnum.IL2CPP_TYPE_I1:
+                    case Il2CppTypeEnum.IL2CPP_TYPE_U1:
+                    case Il2CppTypeEnum.IL2CPP_TYPE_I2:
+                    case Il2CppTypeEnum.IL2CPP_TYPE_U2:
+                    case Il2CppTypeEnum.IL2CPP_TYPE_I4:
+                    case Il2CppTypeEnum.IL2CPP_TYPE_U4:
+                    case Il2CppTypeEnum.IL2CPP_TYPE_I8:
+                    case Il2CppTypeEnum.IL2CPP_TYPE_U8:
+                    case Il2CppTypeEnum.IL2CPP_TYPE_R4:
+                    case Il2CppTypeEnum.IL2CPP_TYPE_R8:
+                    case Il2CppTypeEnum.IL2CPP_TYPE_STRING:
+                        return true;
+                    case Il2CppTypeEnum.IL2CPP_TYPE_VALUETYPE:
+                        return executor.GetTypeDefinitionFromIl2CppType(t)?.IsEnum == true;
+                    default:
+                        return false;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private bool TryGetDefaultValue(int typeIndex, int dataIndex, out object value)
+        {
+            if (dataIndex == -1)
+            {
+                value = null;
+                return true;
+            }
+            try
+            {
+                return executor.TryGetDefaultValue(typeIndex, dataIndex, out value);
+            }
+            catch
+            {
+                value = null;
+                return false;
+            }
+        }
+
         private void CreateAssemblies()
         {
             if (metadata?.imageDefs == null)
@@ -231,6 +289,8 @@ namespace Il2CppDumper
                         type.Interfaces.Add(new InterfaceImplementation(iface));
                 }
 
+                ApplyGenericParameterConstraints(type, td.genericContainerIndex, module, type, null);
+
                 for (int i = 0; i < td.field_count; i++)
                 {
                     int fieldIndex = td.fieldStart + i;
@@ -240,7 +300,24 @@ namespace Il2CppDumper
                     var fieldType = ResolveType(fd.typeIndex, module, type, null) ?? GetSystemType(module, typeof(object));
                     var attrs = FieldAttributes.Public;
                     try { attrs = (FieldAttributes)il2Cpp.types[fd.typeIndex].attrs; } catch { }
+
+                    var trustedLiteral = IsTrustedLiteralField(fieldIndex, fd.typeIndex);
+                    if (trustedLiteral)
+                    {
+                        attrs |= FieldAttributes.Literal | FieldAttributes.Static;
+                    }
+                    else
+                    {
+                        attrs &= ~FieldAttributes.Literal;
+                        attrs &= ~FieldAttributes.HasDefault;
+                    }
+
                     var field = new FieldDefinition(GetMetadataString(fd.nameIndex, $"field_{fieldIndex}"), attrs, fieldType);
+                    if (trustedLiteral && metadata.GetFieldDefaultValueFromIndex(fieldIndex, out var fieldDefault) &&
+                        TryGetDefaultValue(fieldDefault.typeIndex, fieldDefault.dataIndex, out var fieldValue))
+                    {
+                        field.Constant = fieldValue;
+                    }
                     type.Fields.Add(field);
                 }
 
@@ -255,6 +332,7 @@ namespace Il2CppDumper
                         ImplAttributes = (MethodImplAttributes)md.iflags
                     };
                     AddGenericParameters(method, md.genericContainerIndex);
+                    ApplyGenericParameterConstraints(method, md.genericContainerIndex, module, type, method);
                     method.ReturnType = ResolveType(md.returnType, module, type, method) ?? GetSystemType(module, typeof(object));
                     for (int p = 0; p < md.parameterCount; p++)
                     {
@@ -263,7 +341,21 @@ namespace Il2CppDumper
                             continue;
                         var pd = metadata.parameterDefs[parameterIndex];
                         var pt = ResolveType(pd.typeIndex, module, type, method) ?? GetSystemType(module, typeof(object));
-                        var parameter = new ParameterDefinition(GetMetadataString(pd.nameIndex, $"param_{p}"), ParameterAttributes.None, pt);
+                        var parameterAttrs = ParameterAttributes.None;
+                        try
+                        {
+                            var raw = il2Cpp.types[pd.typeIndex].attrs;
+                            if ((raw & Il2CppConstants.PARAM_ATTRIBUTE_IN) != 0) parameterAttrs |= ParameterAttributes.In;
+                            if ((raw & Il2CppConstants.PARAM_ATTRIBUTE_OUT) != 0) parameterAttrs |= ParameterAttributes.Out;
+                            if ((raw & Il2CppConstants.PARAM_ATTRIBUTE_OPTIONAL) != 0) parameterAttrs |= ParameterAttributes.Optional;
+                        }
+                        catch { }
+                        var parameter = new ParameterDefinition(GetMetadataString(pd.nameIndex, $"param_{p}"), parameterAttrs, pt);
+                        if (metadata.GetParameterDefaultValueFromIndex(parameterIndex, out var parameterDefault) &&
+                            TryGetDefaultValue(parameterDefault.typeIndex, parameterDefault.dataIndex, out var parameterValue))
+                        {
+                            parameter.Constant = parameterValue;
+                        }
                         method.Parameters.Add(parameter);
                     }
                     type.Methods.Add(method);
@@ -325,6 +417,37 @@ namespace Il2CppDumper
                     ? GetMetadataString(gp.nameIndex, $"T{i}")
                     : $"T{i}";
                 owner.GenericParameters.Add(new GenericParameter(name, owner));
+            }
+        }
+
+        private void ApplyGenericParameterConstraints(IGenericParameterProvider owner, int containerIndex, ModuleDefinition module, TypeDefinition declaringType, MethodDefinition method)
+        {
+            if (owner == null || metadata.genericContainers == null || metadata.genericParameters == null ||
+                containerIndex < 0 || containerIndex >= metadata.genericContainers.Length)
+                return;
+            var gc = metadata.genericContainers[containerIndex];
+            if (gc == null)
+                return;
+            var count = Math.Min(gc.type_argc, owner.GenericParameters.Count);
+            for (int i = 0; i < count; i++)
+            {
+                int index = gc.genericParameterStart + i;
+                if (index < 0 || index >= metadata.genericParameters.Length)
+                    continue;
+                var src = metadata.genericParameters[index];
+                var dst = owner.GenericParameters[i];
+                dst.Attributes = (GenericParameterAttributes)src.flags;
+                if (metadata.constraintIndices == null || src.constraintsCount <= 0 || src.constraintsStart < 0)
+                    continue;
+                for (int c = 0; c < src.constraintsCount; c++)
+                {
+                    int ci = src.constraintsStart + c;
+                    if (ci < 0 || ci >= metadata.constraintIndices.Length)
+                        continue;
+                    var constraintType = ResolveType(metadata.constraintIndices[ci], module, declaringType, method);
+                    if (constraintType != null)
+                        dst.Constraints.Add(new GenericParameterConstraint(constraintType));
+                }
             }
         }
 

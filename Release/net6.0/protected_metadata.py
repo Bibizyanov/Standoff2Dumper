@@ -1050,6 +1050,12 @@ class ImageDef:
     type_count: int
     name_index: int
     type_start: int
+    exported_type_start: int = -1
+    exported_type_count: int = 0
+    entry_point_index: int = -1
+    token: int = 1
+    custom_attribute_start: int = -1
+    custom_attribute_count: int = 0
     name: str = ""
     codegen_module_va: int = 0
 
@@ -1438,16 +1444,40 @@ class ProtectedMetadata:
 
     def parse_image(self, index: int) -> ImageDef:
         va = self.base + self.images_off + index * self.image_entry_size
-        # B2F5B40 (36 packed bytes -> 40 logical bytes): typeStart is the
-        # packed TypeDefinitionIndex at +8, typeCount at +14, name at +24 and
-        # assemblyIndex at +32.
+        # sub_B2F5B40 expands the 36-byte protected record to ten logical
+        # dwords.  sub_6343464 plus cross-image continuity proves their
+        # semantics for this build:
+        #   out+00 customAttributeCount
+        #   out+04 entryPointIndex
+        #   out+08 typeStart (packed TypeDefinitionIndex)
+        #   out+0C customAttributeStart
+        #   out+10 typeCount
+        #   out+14 token
+        #   out+18 exportedTypeStart (packed TypeDefinitionIndex)
+        #   out+1C nameIndex
+        #   out+20 exportedTypeCount
+        #   out+24 assemblyIndex
+        # With width_type_def==2 the corresponding packed input offsets are
+        # 0,4,8,10,14,18,22,24,28,32.
+        custom_attribute_count = self.elf.u32(va + 0x00)
+        entry_point_index = self.elf.i32(va + 0x04)
         type_start = read_packed_u(self.elf, va + 0x08, self.width_type_def)
+        custom_attribute_start = self.elf.i32(va + 0x0A)
         type_count = self.elf.u32(va + 0x0E)
+        token = self.elf.u32(va + 0x12)
+        exported_type_start = read_packed_u(self.elf, va + 0x16, self.width_type_def)
         name_index = self.elf.i32(va + 0x18)
+        exported_type_count = self.elf.u32(va + 0x1C)
         assembly_index = self.elf.i32(va + 0x20)
         return ImageDef(
             index=index, assembly_index=assembly_index, type_count=type_count,
-            name_index=name_index, type_start=type_start, name=self.str(name_index),
+            name_index=name_index, type_start=type_start,
+            exported_type_start=exported_type_start,
+            exported_type_count=exported_type_count,
+            entry_point_index=entry_point_index, token=token,
+            custom_attribute_start=custom_attribute_start,
+            custom_attribute_count=custom_attribute_count,
+            name=self.str(name_index),
         )
 
     def load_all(self) -> None:
@@ -2164,15 +2194,15 @@ def rebuild_global_metadata_v31(md: ProtectedMetadata) -> tuple[bytes, dict]:
         image_blob += struct.pack(
             "<IiiIiIiIiI",
             img.name_index & 0xFFFFFFFF,
-            img.index,           # one synthetic assembly per image
+            img.assembly_index,
             img.type_start,
             img.type_count & 0xFFFFFFFF,
-            -1,                  # exportedTypeStart
-            0,                   # exportedTypeCount
-            -1,                  # entryPointIndex
-            1,                   # image token (canonical image token)
-            -1,                  # customAttributeStart
-            0,                   # customAttributeCount
+            img.exported_type_start,
+            img.exported_type_count & 0xFFFFFFFF,
+            img.entry_point_index,
+            img.token & 0xFFFFFFFF,
+            img.custom_attribute_start,
+            img.custom_attribute_count & 0xFFFFFFFF,
         )
 
         assembly_blob += struct.pack(
@@ -2180,7 +2210,7 @@ def rebuild_global_metadata_v31(md: ProtectedMetadata) -> tuple[bytes, dict]:
             "IIIIiI"
             "iiii"
             "8s",
-            img.index,                     # imageIndex
+            img.index,                     # imageIndex (one assembly record per image)
             (0x20000001 + img.index) & 0xFFFFFFFF,
             -1,                            # referencedAssemblyStart
             0,                             # referencedAssemblyCount
@@ -2268,6 +2298,73 @@ def rebuild_global_metadata_v31(md: ProtectedMetadata) -> tuple[bytes, dict]:
                 f'0x{len(attribute_data_blob):X}'
             )
 
+    # Reconstruct protected v31 default-value metadata.  The runtime accessors
+    # prove the shuffled header positions and record order for this build:
+    #   FieldDefaultValue table: hdr+0x134 offset, +0x84 packed byte size,
+    #       +0x2C count.  Protected record = {dataIndex, fieldIndex, typeIndex}.
+    #   ParameterDefaultValue table: hdr+0x60 offset, +0xB4 packed byte size,
+    #       +0xBC count.  Protected record = {parameterIndex, dataIndex, typeIndex}.
+    #   Shared default blob: hdr+0x154 offset and continues up to the parameter
+    #       definition table (hdr+0x24 / md.params_off).
+    # All three indices are four bytes in this build, so each protected record is
+    # 12 bytes and only the field order differs from stock metadata.
+    field_default_off = md.elf.u32(md.base + 0x134)
+    field_default_size = md.elf.u32(md.base + 0x84)
+    field_default_count = md.elf.u32(md.base + 0x2C)
+    param_default_off = md.elf.u32(md.base + 0x60)
+    param_default_size = md.elf.u32(md.base + 0xB4)
+    param_default_count = md.elf.u32(md.base + 0xBC)
+    default_data_off = md.elf.u32(md.base + 0x154)
+    default_data_end = md.params_off
+
+    if field_default_count and field_default_size != field_default_count * 12:
+        raise ValueError(
+            f'Unexpected protected field-default record size: '
+            f'{field_default_size}/{field_default_count}'
+        )
+    if param_default_count and param_default_size != param_default_count * 12:
+        raise ValueError(
+            f'Unexpected protected parameter-default record size: '
+            f'{param_default_size}/{param_default_count}'
+        )
+    if not (0 < default_data_off <= default_data_end):
+        raise ValueError('Invalid protected default-value data bounds')
+
+    # Protected field references are used by reflection/metadata-usage paths.
+    # sub_6342F38 + sub_B2F5AFC prove hdr+0x30 offset, +0xB8 size,
+    # +0x68 count and protected order {fieldIndex, typeIndex}.
+    field_refs_off = md.elf.u32(md.base + 0x30)
+    field_refs_size = md.elf.u32(md.base + 0xB8)
+    field_refs_count = md.elf.u32(md.base + 0x68)
+    if field_refs_count and field_refs_size != field_refs_count * 8:
+        raise ValueError('Unexpected protected field-ref record size')
+    field_ref_blob = bytearray()
+    for i in range(field_refs_count):
+        va = md.base + field_refs_off + i * 8
+        field_index = md.elf.i32(va + 0)
+        type_index = md.elf.i32(va + 4)
+        field_ref_blob += struct.pack('<ii', type_index, field_index)
+
+    field_default_blob = bytearray()
+    for i in range(field_default_count):
+        va = md.base + field_default_off + i * 12
+        data_index = md.elf.i32(va + 0)
+        field_index = md.elf.i32(va + 4)
+        type_index = md.elf.i32(va + 8)
+        field_default_blob += struct.pack('<iii', field_index, type_index, data_index)
+
+    param_default_blob = bytearray()
+    for i in range(param_default_count):
+        va = md.base + param_default_off + i * 12
+        parameter_index = md.elf.i32(va + 0)
+        data_index = md.elf.i32(va + 4)
+        type_index = md.elf.i32(va + 8)
+        param_default_blob += struct.pack('<iii', parameter_index, type_index, data_index)
+
+    default_value_data_blob = md.elf.read(
+        md.base + default_data_off, default_data_end - default_data_off
+    )
+
     sections: dict[str, bytes] = {
         "stringLiteral": bytes(string_literal_blob),
         "stringLiteralData": bytes(string_literal_data_blob),
@@ -2275,9 +2372,9 @@ def rebuild_global_metadata_v31(md: ProtectedMetadata) -> tuple[bytes, dict]:
         "events": bytes(event_blob),
         "properties": bytes(property_blob),
         "methods": bytes(method_blob),
-        "parameterDefaultValues": b"",
-        "fieldDefaultValues": b"",
-        "fieldAndParameterDefaultValueData": b"",
+        "parameterDefaultValues": bytes(param_default_blob),
+        "fieldDefaultValues": bytes(field_default_blob),
+        "fieldAndParameterDefaultValueData": bytes(default_value_data_blob),
         "fieldMarshaledSizes": b"",
         "parameters": bytes(param_blob),
         "fields": bytes(field_blob),
@@ -2291,7 +2388,7 @@ def rebuild_global_metadata_v31(md: ProtectedMetadata) -> tuple[bytes, dict]:
         "typeDefinitions": bytes(type_blob),
         "images": bytes(image_blob),
         "assemblies": bytes(assembly_blob),
-        "fieldRefs": b"",
+        "fieldRefs": bytes(field_ref_blob),
         "referencedAssemblies": b"",
         "attributeData": bytes(attribute_data_blob),
         "attributeDataRange": bytes(attribute_range_blob),
@@ -2337,6 +2434,13 @@ def rebuild_global_metadata_v31(md: ProtectedMetadata) -> tuple[bytes, dict]:
             for name, (off, size) in locs.items()
         },
         "nested_graph": nested_graph_diag,
+        "default_values": {
+            "field_count": field_default_count,
+            "field_table_size": len(field_default_blob),
+            "parameter_count": param_default_count,
+            "parameter_table_size": len(param_default_blob),
+            "data_size": len(default_value_data_blob),
+        },
         "custom_attributes": {
             "range_count": attribute_range_count,
             "range_size": len(attribute_range_blob),
@@ -2366,7 +2470,10 @@ def rebuild_global_metadata_v31(md: ProtectedMetadata) -> tuple[bytes, dict]:
             "declaringType converted from protected TypeIndex to canonical TypeDefinitionIndex.",
             "Protected string literals reconstructed into canonical Il2CppStringLiteral records.",
             "Protected custom-attribute data/ranges are copied verbatim after validating their exact bounds.",
-            "Optional default-value/WinRT/exported-type sections are empty in this stage.",
+            "Image customAttributeStart/customAttributeCount and exported-type ranges are restored from protected ImageDefinition records.",
+            "Field and parameter default-value tables/data are restored from the protected metadata.",
+            "FieldRef records are restored and reordered to stock {typeIndex, fieldIndex} layout.",
+            "WinRT/exported-type sections remain empty when they are not required by this title.",
             "Stock Il2CppDumper metadata parsing should accept this file; binary registration remains custom/shuffled.",
         ],
     }
@@ -2685,17 +2792,24 @@ _IL2CPP_TYPE_KINDS = {
 }
 
 
-def _decode_protected_type_bits(bits: int) -> tuple[int, int, int, int, int]:
+def _decode_protected_type_bits(bits: int) -> tuple[int, int, int, int, int, int]:
     """Decode the protector's compact Il2CppType descriptor dword at +0.
 
-    byte[+1] is Il2CppTypeEnum; byte[+2] bit4 is byref.  The original attrs and
-    custom-modifier bookkeeping are not required by stock Il2CppDumper and are
-    intentionally emitted as zero rather than guessed.
+    Verified against the 100603 runtime type records in this build:
+      byte[+0] bit6 = valuetype, bit7 = byref
+      byte[+1]      = Il2CppTypeEnum
+      byte[+2:+4]   = the original 16-bit attrs value
+
+    The earlier rebuilder intentionally zeroed attrs and incorrectly treated
+    byte[+2] bit4 as byref.  That destroyed field access/static/readonly/literal
+    flags and parameter In/Out/Optional flags.  Preserve the real attrs here.
     """
+    flag0 = bits & 0xFF
     kind = (bits >> 8) & 0xFF
-    flag_byte = (bits >> 16) & 0xFF
-    byref = (flag_byte >> 4) & 1
-    return 0, kind, 0, byref, 0
+    attrs = (bits >> 16) & 0xFFFF
+    valuetype = (flag0 >> 6) & 1
+    byref = (flag0 >> 7) & 1
+    return attrs, kind, 0, byref, 0, valuetype
 
 def _protected_runtime_type_kind(elf: ELF64, types_ptr: int, types_count: int, type_index: int) -> tuple[int, int]:
     if type_index < 0 or type_index >= types_count:
@@ -3451,8 +3565,7 @@ def refine_generic_constraint_table(
 
 
 def _convert_type_bits_protected_to_stock(bits: int) -> int:
-    attrs, kind, num_mods, byref, pinned = _decode_protected_type_bits(bits)
-    valuetype = 1 if kind == 0x11 else 0
+    attrs, kind, num_mods, byref, pinned, valuetype = _decode_protected_type_bits(bits)
     return (
         attrs
         | (kind << 16)

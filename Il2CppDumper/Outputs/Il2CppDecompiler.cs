@@ -30,8 +30,11 @@ namespace Il2CppDumper
             if ((fieldType.attrs & FIELD_ATTRIBUTE_LITERAL) == 0)
                 return false;
 
-            if (!metadata.GetFieldDefaultValueFromIndex(fieldIndex, out var defaultValue) ||
-                defaultValue.dataIndex < 0)
+            // A protected build may set the Literal bit on ordinary fields.
+            // A real literal field, however, has an Il2CppFieldDefaultValue row.
+            // dataIndex == -1 is still meaningful (for example a null constant),
+            // so presence of the row is the trust signal, not dataIndex >= 0.
+            if (!metadata.GetFieldDefaultValueFromIndex(fieldIndex, out _))
                 return false;
 
             switch (fieldType.type)
@@ -55,6 +58,169 @@ namespace Il2CppDumper
                 default:
                     return false;
             }
+        }
+
+        private string SafeTypeName(int typeIndex)
+        {
+            try
+            {
+                if (typeIndex < 0 || il2Cpp.types == null || typeIndex >= il2Cpp.types.Length)
+                    return null;
+                return executor.GetTypeName(il2Cpp.types[typeIndex], false, false);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private IEnumerable<string> GetGenericConstraints(int genericContainerIndex)
+        {
+            if (genericContainerIndex < 0 || metadata.genericContainers == null ||
+                genericContainerIndex >= metadata.genericContainers.Length)
+                yield break;
+
+            var gc = metadata.genericContainers[genericContainerIndex];
+            for (var i = 0; i < gc.type_argc; i++)
+            {
+                var gpIndex = gc.genericParameterStart + i;
+                if (gpIndex < 0 || metadata.genericParameters == null || gpIndex >= metadata.genericParameters.Length)
+                    continue;
+                var gp = metadata.genericParameters[gpIndex];
+                var name = metadata.GetStringFromIndex(gp.nameIndex);
+                if (string.IsNullOrEmpty(name))
+                    name = $"T{i}";
+
+                var parts = new List<string>();
+                // System.Reflection.GenericParameterAttributes special-constraint bits.
+                if ((gp.flags & 0x4) != 0)
+                    parts.Add("class");
+                if ((gp.flags & 0x8) != 0)
+                    parts.Add("struct");
+
+                if (gp.constraintsCount > 0 && gp.constraintsStart >= 0 && metadata.constraintIndices != null)
+                {
+                    for (var c = 0; c < gp.constraintsCount; c++)
+                    {
+                        var ci = gp.constraintsStart + c;
+                        if (ci < 0 || ci >= metadata.constraintIndices.Length)
+                            continue;
+                        var tn = SafeTypeName(metadata.constraintIndices[ci]);
+                        if (!string.IsNullOrEmpty(tn) && tn != "System.ValueType" && tn != "ValueType")
+                            parts.Add(tn);
+                    }
+                }
+
+                if ((gp.flags & 0x10) != 0 && (gp.flags & 0x8) == 0)
+                    parts.Add("new()");
+
+                if (parts.Count > 0)
+                    yield return $"where {name} : {string.Join(", ", parts.Distinct())}";
+            }
+        }
+
+        private List<string> GetTypeDependencies(Il2CppTypeDefinition typeDef, int typeDefIndex)
+        {
+            var deps = new HashSet<string>();
+            void AddTypeIndex(int idx)
+            {
+                var n = SafeTypeName(idx);
+                if (!string.IsNullOrWhiteSpace(n) && n != "object" && n != "System.Object")
+                    deps.Add(n);
+            }
+
+            AddTypeIndex(typeDef.parentIndex);
+            AddTypeIndex(typeDef.declaringTypeIndex);
+
+            if (typeDef.interfaces_count > 0 && metadata.interfaceIndices != null)
+            {
+                for (var i = 0; i < typeDef.interfaces_count; i++)
+                {
+                    var pos = typeDef.interfacesStart + i;
+                    if (pos >= 0 && pos < metadata.interfaceIndices.Length)
+                        AddTypeIndex(metadata.interfaceIndices[pos]);
+                }
+            }
+
+            if (metadata.nestedTypeIndices != null && typeDef.nested_type_count > 0)
+            {
+                for (var i = 0; i < typeDef.nested_type_count; i++)
+                {
+                    var pos = typeDef.nestedTypesStart + i;
+                    if (pos < 0 || pos >= metadata.nestedTypeIndices.Length)
+                        continue;
+                    var nestedTdIndex = metadata.nestedTypeIndices[pos];
+                    if (nestedTdIndex >= 0 && nestedTdIndex < metadata.typeDefs.Length)
+                    {
+                        var nested = metadata.typeDefs[nestedTdIndex];
+                        var n = executor.GetTypeDefName(nested, false, true);
+                        if (!string.IsNullOrWhiteSpace(n))
+                            deps.Add(n);
+                    }
+                }
+            }
+
+            for (var i = 0; i < typeDef.field_count; i++)
+            {
+                var idx = typeDef.fieldStart + i;
+                if (idx >= 0 && idx < metadata.fieldDefs.Length)
+                    AddTypeIndex(metadata.fieldDefs[idx].typeIndex);
+            }
+            for (var i = 0; i < typeDef.method_count; i++)
+            {
+                var idx = typeDef.methodStart + i;
+                if (idx < 0 || idx >= metadata.methodDefs.Length)
+                    continue;
+                var md = metadata.methodDefs[idx];
+                AddTypeIndex(md.returnType);
+                for (var p = 0; p < md.parameterCount; p++)
+                {
+                    var pi = md.parameterStart + p;
+                    if (pi >= 0 && pi < metadata.parameterDefs.Length)
+                        AddTypeIndex(metadata.parameterDefs[pi].typeIndex);
+                }
+                if (md.genericContainerIndex >= 0 && metadata.genericContainers != null && metadata.genericParameters != null)
+                {
+                    var gc = metadata.genericContainers[md.genericContainerIndex];
+                    for (var g = 0; g < gc.type_argc; g++)
+                    {
+                        var gpi = gc.genericParameterStart + g;
+                        if (gpi < 0 || gpi >= metadata.genericParameters.Length) continue;
+                        var gp = metadata.genericParameters[gpi];
+                        for (var c = 0; c < gp.constraintsCount; c++)
+                        {
+                            var ci = gp.constraintsStart + c;
+                            if (metadata.constraintIndices != null && ci >= 0 && ci < metadata.constraintIndices.Length)
+                                AddTypeIndex(metadata.constraintIndices[ci]);
+                        }
+                    }
+                }
+            }
+            for (var i = 0; i < typeDef.event_count; i++)
+            {
+                var idx = typeDef.eventStart + i;
+                if (metadata.eventDefs != null && idx >= 0 && idx < metadata.eventDefs.Length)
+                    AddTypeIndex(metadata.eventDefs[idx].typeIndex);
+            }
+
+            if (typeDef.genericContainerIndex >= 0 && metadata.genericContainers != null && metadata.genericParameters != null)
+            {
+                var gc = metadata.genericContainers[typeDef.genericContainerIndex];
+                for (var g = 0; g < gc.type_argc; g++)
+                {
+                    var gpi = gc.genericParameterStart + g;
+                    if (gpi < 0 || gpi >= metadata.genericParameters.Length) continue;
+                    var gp = metadata.genericParameters[gpi];
+                    for (var c = 0; c < gp.constraintsCount; c++)
+                    {
+                        var ci = gp.constraintsStart + c;
+                        if (metadata.constraintIndices != null && ci >= 0 && ci < metadata.constraintIndices.Length)
+                            AddTypeIndex(metadata.constraintIndices[ci]);
+                    }
+                }
+            }
+
+            return deps.OrderBy(x => x, StringComparer.Ordinal).ToList();
         }
 
         public void Decompile(Config config, string outputDir)
@@ -142,9 +308,13 @@ namespace Il2CppDumper
                         if (extends.Count > 0)
                             writer.Write($" : {string.Join(", ", extends)}");
                         if (config.DumpTypeDefIndex)
-                            writer.Write($" // TypeDefIndex: {typeDefIndex}\n{{");
+                            writer.Write($" // TypeDefIndex: {typeDefIndex}\n");
                         else
-                            writer.Write("\n{");
+                            writer.Write("\n");
+                        foreach (var constraint in GetGenericConstraints(typeDef.genericContainerIndex))
+                            writer.Write($"\t{constraint}\n");
+                        writer.Write("{");
+
                         //dump field
                         if (config.DumpField && typeDef.field_count > 0)
                         {
@@ -199,9 +369,13 @@ namespace Il2CppDumper
                                     }
                                 }
                                 writer.Write($"{executor.GetTypeName(fieldType, false, false)} {metadata.GetStringFromIndex(fieldDef.nameIndex)}");
-                                if (metadata.GetFieldDefaultValueFromIndex(i, out var fieldDefaultValue) && fieldDefaultValue.dataIndex != -1)
+                                if (metadata.GetFieldDefaultValueFromIndex(i, out var fieldDefaultValue))
                                 {
-                                    if (executor.TryGetDefaultValue(fieldDefaultValue.typeIndex, fieldDefaultValue.dataIndex, out var value))
+                                    if (fieldDefaultValue.dataIndex == -1)
+                                    {
+                                        writer.Write(" = null");
+                                    }
+                                    else if (executor.TryGetDefaultValue(fieldDefaultValue.typeIndex, fieldDefaultValue.dataIndex, out var value))
                                     {
                                         writer.Write($" = ");
                                         if (value is string str)
@@ -212,6 +386,10 @@ namespace Il2CppDumper
                                         {
                                             var v = (int)c;
                                             writer.Write($"'\\x{v:x}'");
+                                        }
+                                        else if (value is bool b)
+                                        {
+                                            writer.Write(b ? "true" : "false");
                                         }
                                         else if (value != null)
                                         {
@@ -269,6 +447,25 @@ namespace Il2CppDumper
                                 writer.Write("\n");
                             }
                         }
+                        //dump event
+                        if (typeDef.event_count > 0 && metadata.eventDefs != null)
+                        {
+                            writer.Write("\n\t// Events\n");
+                            var eventEnd = typeDef.eventStart + typeDef.event_count;
+                            for (var i = typeDef.eventStart; i < eventEnd; ++i)
+                            {
+                                if (i < 0 || i >= metadata.eventDefs.Length)
+                                    continue;
+                                var eventDef = metadata.eventDefs[i];
+                                if (config.DumpAttribute)
+                                    writer.Write(GetCustomAttribute(imageDef, eventDef.customAttributeIndex, eventDef.token, "\t"));
+                                var eventTypeName = SafeTypeName(eventDef.typeIndex) ?? "object";
+                                var eventName = metadata.GetStringFromIndex(eventDef.nameIndex);
+                                writer.Write($"\t{eventTypeName} {eventName};");
+                                writer.Write($" // add: {eventDef.add}, remove: {eventDef.remove}, raise: {eventDef.raise}\n");
+                            }
+                        }
+
                         //dump method
                         if (config.DumpMethod && typeDef.method_count > 0)
                         {
@@ -350,9 +547,13 @@ namespace Il2CppDumper
                                         }
                                     }
                                     parameterStr += $"{parameterTypeName} {parameterName}";
-                                    if (metadata.GetParameterDefaultValueFromIndex(methodDef.parameterStart + j, out var parameterDefault) && parameterDefault.dataIndex != -1)
+                                    if (metadata.GetParameterDefaultValueFromIndex(methodDef.parameterStart + j, out var parameterDefault))
                                     {
-                                        if (executor.TryGetDefaultValue(parameterDefault.typeIndex, parameterDefault.dataIndex, out var value))
+                                        if (parameterDefault.dataIndex == -1)
+                                        {
+                                            parameterStr += " = null";
+                                        }
+                                        else if (executor.TryGetDefaultValue(parameterDefault.typeIndex, parameterDefault.dataIndex, out var value))
                                         {
                                             parameterStr += " = ";
                                             if (value is string str)
@@ -364,13 +565,17 @@ namespace Il2CppDumper
                                                 var v = (int)c;
                                                 parameterStr += $"'\\x{v:x}'";
                                             }
+                                            else if (value is bool b)
+                                            {
+                                                parameterStr += b ? "true" : "false";
+                                            }
                                             else if (value != null)
                                             {
                                                 parameterStr += $"{value}";
                                             }
                                             else
                                             {
-                                                writer.Write("null");
+                                                parameterStr += "null";
                                             }
                                         }
                                         else
@@ -381,14 +586,22 @@ namespace Il2CppDumper
                                     parameterStrs.Add(parameterStr);
                                 }
                                 writer.Write(string.Join(", ", parameterStrs));
+                                writer.Write(")");
+                                var methodConstraints = GetGenericConstraints(methodDef.genericContainerIndex).ToList();
+                                if (methodConstraints.Count > 0)
+                                {
+                                    writer.Write("\n");
+                                    for (var gcIndex = 0; gcIndex < methodConstraints.Count; gcIndex++)
+                                    {
+                                        writer.Write($"\t\t{methodConstraints[gcIndex]}");
+                                        if (gcIndex + 1 < methodConstraints.Count)
+                                            writer.Write("\n");
+                                    }
+                                }
                                 if (isAbstract)
-                                {
-                                    writer.Write(");\n");
-                                }
+                                    writer.Write(";\n");
                                 else
-                                {
-                                    writer.Write(") { }\n");
-                                }
+                                    writer.Write(" { }\n");
 
                                 if (il2Cpp.methodDefinitionMethodSpecs.TryGetValue(i, out var methodSpecs))
                                 {

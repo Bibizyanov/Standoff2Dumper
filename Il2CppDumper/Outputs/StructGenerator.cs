@@ -44,8 +44,7 @@ namespace Il2CppDumper
             if ((fieldType.attrs & FIELD_ATTRIBUTE_LITERAL) == 0)
                 return false;
 
-            if (!metadata.GetFieldDefaultValueFromIndex(fieldIndex, out var defaultValue) ||
-                defaultValue.dataIndex < 0)
+            if (!metadata.GetFieldDefaultValueFromIndex(fieldIndex, out _))
                 return false;
 
             switch (fieldType.type)
