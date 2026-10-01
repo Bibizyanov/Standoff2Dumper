@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Il2CppDumper
 {
@@ -70,7 +70,7 @@ namespace Il2CppDumper
         public uint SizeOfHeapCommit;
         public uint LoaderFlags;
         public uint NumberOfRvaAndSizes;
-        //public DataDirectory[] DataDirectory;
+        
     }
 
     public class OptionalHeader64
@@ -104,14 +104,14 @@ namespace Il2CppDumper
         public ulong SizeOfHeapCommit;
         public uint LoaderFlags;
         public uint NumberOfRvaAndSizes;
-        //public DataDirectory[] DataDirectory;
+        
     }
 
-    /*public class DataDirectory
-    {
-        public uint VirtualAddress;
-        public uint Size;
-    }*/
+    
+
+
+
+
 
     public class SectionHeader
     {

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -72,21 +72,26 @@ namespace Il2CppDumper
 
         public void WriteScript(string outputDir)
         {
-            var json = new ScriptJson();
-            // 生成唯一名称
+            var json = new ScriptJson
+            {
+                Watermark = WatermarkService.CreateScriptWatermark()
+            };
+            
             for (var imageIndex = 0; imageIndex < metadata.imageDefs.Length; imageIndex++)
             {
                 var imageDef = metadata.imageDefs[imageIndex];
                 var imageName = metadata.GetStringFromIndex(imageDef.nameIndex);
-                var typeEnd = imageDef.typeStart + imageDef.typeCount;
-                for (int typeIndex = imageDef.typeStart; typeIndex < typeEnd; typeIndex++)
+                var ts = Math.Max(0, imageDef.typeStart);
+                if (ts > metadata.typeDefs.Length) ts = metadata.typeDefs.Length;
+                var te = (int)Math.Min(metadata.typeDefs.LongLength, Math.Max((long)ts, (long)imageDef.typeStart + imageDef.typeCount));
+                for (var typeIndex = ts; typeIndex < te; typeIndex++)
                 {
                     var typeDef = metadata.typeDefs[typeIndex];
                     typeDefImageNames.Add(typeDef, imageName);
                     CreateStructNameDic(typeDef);
                 }
             }
-            // 生成后面处理泛型实例要用到的字典
+            
             foreach (var il2CppType in il2Cpp.types.Where(x => x.type == Il2CppTypeEnum.IL2CPP_TYPE_GENERICINST))
             {
                 var genericClass = il2Cpp.MapVATR<Il2CppGenericClass>(il2CppType.data.generic_class);
@@ -102,12 +107,14 @@ namespace Il2CppDumper
                 nameGenericClassDic[typeStructName] = il2CppType;
                 genericClassStructNameDic[il2CppType.data.generic_class] = typeStructName;
             }
-            // 处理函数
+            
             foreach (var imageDef in metadata.imageDefs)
             {
                 var imageName = metadata.GetStringFromIndex(imageDef.nameIndex);
-                var typeEnd = imageDef.typeStart + imageDef.typeCount;
-                for (int typeIndex = imageDef.typeStart; typeIndex < typeEnd; typeIndex++)
+                var ts = Math.Max(0, imageDef.typeStart);
+                if (ts > metadata.typeDefs.Length) ts = metadata.typeDefs.Length;
+                var te = (int)Math.Min(metadata.typeDefs.LongLength, Math.Max((long)ts, (long)imageDef.typeStart + imageDef.typeCount));
+                for (var typeIndex = ts; typeIndex < te; typeIndex++)
                 {
                     var typeDef = metadata.typeDefs[typeIndex];
                     AddStruct(typeDef);
@@ -167,7 +174,7 @@ namespace Il2CppDumper
                             scriptMethod.Signature = signature;
                             scriptMethod.TypeSignature = GetMethodTypeSignature(methodTypeSignature);
                         }
-                        //泛型实例函数
+                        
                         if (il2Cpp.methodDefinitionMethodSpecs.TryGetValue(i, out var methodSpecs))
                         {
                             foreach (var methodSpec in methodSpecs)
@@ -216,7 +223,7 @@ namespace Il2CppDumper
                                             }
                                             else
                                             {
-                                                //没有单独的泛型实例类
+                                                
                                                 thisType = ParseType(il2Cpp.types[typeDef.byvalTypeIndex]);
                                                 methodTypeSignature.Add(il2Cpp.types[typeDef.byvalTypeIndex].type);
                                             }
@@ -258,7 +265,7 @@ namespace Il2CppDumper
                     }
                 }
             }
-            //处理函数范围
+            
             List<ulong> orderedPointers;
             if (il2Cpp.Version >= 24.2)
             {
@@ -285,7 +292,7 @@ namespace Il2CppDumper
                 if (il2Cpp.unresolvedVirtualCallPointers != null)
                     orderedPointers.AddRange(il2Cpp.unresolvedVirtualCallPointers);
             }
-            //TODO interopData内也包含函数
+            
             orderedPointers = orderedPointers.Distinct().OrderBy(x => x).ToList();
             orderedPointers.Remove(0);
             json.Addresses = new ulong[orderedPointers.Count];
@@ -293,7 +300,7 @@ namespace Il2CppDumper
             {
                 json.Addresses[i] = il2Cpp.GetRVA(orderedPointers[i]);
             }
-            // 处理MetadataUsage
+            
             if (il2Cpp.Version >= 27)
             {
                 var sectionHelper = executor.GetSectionHelper();
@@ -416,7 +423,7 @@ namespace Il2CppDumper
             var jsonOptions = new JsonSerializerOptions() { WriteIndented = true, IncludeFields = true };
             File.WriteAllText(outputDir + "stringliteral.json", JsonSerializer.Serialize(stringLiterals, jsonOptions), new UTF8Encoding(false));
             File.WriteAllText(outputDir + "script.json", JsonSerializer.Serialize(json, jsonOptions), new UTF8Encoding(false));
-            //il2cpp.h
+            
             for (int i = 0; i < genericClassList.Count; i++)
             {
                 var pointer = genericClassList[i];
@@ -591,7 +598,7 @@ namespace Il2CppDumper
                 case Il2CppTypeEnum.IL2CPP_TYPE_BOOLEAN:
                     return "bool";
                 case Il2CppTypeEnum.IL2CPP_TYPE_CHAR:
-                    return "uint16_t"; //Il2CppChar
+                    return "uint16_t"; 
                 case Il2CppTypeEnum.IL2CPP_TYPE_I1:
                     return "int8_t";
                 case Il2CppTypeEnum.IL2CPP_TYPE_U1:
@@ -701,7 +708,7 @@ namespace Il2CppDumper
                         if (context != null)
                         {
                             var genericParameter = executor.GetGenericParameteFromIl2CppType(il2CppType);
-                            //https://github.com/Perfare/Il2CppDumper/issues/687
+                            
                             if (context.method_inst == 0 && context.class_inst != 0)
                             {
                                 goto case Il2CppTypeEnum.IL2CPP_TYPE_VAR;
@@ -839,7 +846,7 @@ namespace Il2CppDumper
                 var usage = Metadata.GetEncodedIndexType(encodedMethodIndex);
                 var index = metadata.GetDecodedMethodIndex(encodedMethodIndex);
                 Il2CppMethodDefinition methodDef;
-                if (usage == 6) //kIl2CppMetadataUsageMethodRef
+                if (usage == 6) 
                 {
                     var methodSpec = il2Cpp.methodSpecs[index];
                     methodDef = metadata.methodDefs[methodSpec.methodDefinitionIndex];
@@ -1045,9 +1052,9 @@ namespace Il2CppDumper
                 var parentStructName = info.Parent + "_o";
                 pre.Append(RecursionStructInfo(structInfoWithStructName[parentStructName]));
                 sb.Append($"struct {info.TypeName}_Fields : {info.Parent}_Fields {{\n");
-                // C style
-                //sb.Append($"struct {info.TypeName}_Fields {{\n");
-                //sb.Append($"\t{info.Parent}_Fields _;\n");
+                
+                
+                
             }
             else
             {
@@ -1439,7 +1446,7 @@ namespace Il2CppDumper
             }
             else
             {
-                methodInfoHeader.Append($"\tvoid* invoker_method;\n"); //TODO
+                methodInfoHeader.Append($"\tvoid* invoker_method;\n"); 
             }
             methodInfoHeader.Append($"\tconst char* name;\n");
             if (il2Cpp.Version <= 24)
@@ -1457,7 +1464,7 @@ namespace Il2CppDumper
             }
             else
             {
-                methodInfoHeader.Append($"\tconst void* parameters;\n"); //ParameterInfo*
+                methodInfoHeader.Append($"\tconst void* parameters;\n"); 
             }
             if (rgctxs.Count > 0)
             {

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 
 namespace Il2CppDumper
 {
@@ -9,6 +9,7 @@ namespace Il2CppDumper
         public List<ScriptMetadata> ScriptMetadata = new();
         public List<ScriptMetadataMethod> ScriptMetadataMethod = new();
         public ulong[] Addresses;
+        public ScriptWatermark Watermark;
     }
 
     public class ScriptMethod

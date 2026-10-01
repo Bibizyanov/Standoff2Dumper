@@ -1,4 +1,4 @@
-﻿namespace Il2CppDumper
+namespace Il2CppDumper
 {
     public static class HeaderConstants
     {

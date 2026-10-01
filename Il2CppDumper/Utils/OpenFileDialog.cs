@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using static Il2CppDumper.FileDialogNative;
 
 namespace Il2CppDumper

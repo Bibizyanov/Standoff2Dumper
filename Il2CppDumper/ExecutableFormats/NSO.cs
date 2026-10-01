@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -160,7 +160,7 @@ namespace Il2CppDumper
             }
             catch
             {
-                // ignored
+                
             }
         }
 
@@ -196,7 +196,7 @@ namespace Il2CppDumper
             }
             catch
             {
-                // ignored
+                
             }
         }
 
@@ -243,17 +243,17 @@ namespace Il2CppDumper
                 writer.Write(header.Magic);
                 writer.Write(header.Version);
                 writer.Write(header.Reserved);
-                writer.Write(0); //Flags
+                writer.Write(0); 
                 writer.Write(header.TextSegment.FileOffset);
                 writer.Write(header.TextSegment.MemoryOffset);
                 writer.Write(header.TextSegment.DecompressedSize);
                 writer.Write(header.ModuleOffset);
                 var roOffset = header.TextSegment.FileOffset + header.TextSegment.DecompressedSize;
-                writer.Write(roOffset); //header.RoDataSegment.FileOffset
+                writer.Write(roOffset); 
                 writer.Write(header.RoDataSegment.MemoryOffset);
                 writer.Write(header.RoDataSegment.DecompressedSize);
                 writer.Write(header.ModuleFileSize);
-                writer.Write(roOffset + header.RoDataSegment.DecompressedSize); //header.DataSegment.FileOffset
+                writer.Write(roOffset + header.RoDataSegment.DecompressedSize); 
                 writer.Write(header.DataSegment.MemoryOffset);
                 writer.Write(header.DataSegment.DecompressedSize);
                 writer.Write(header.BssSize);

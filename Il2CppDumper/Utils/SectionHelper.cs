@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -232,7 +232,7 @@ namespace Il2CppDumper
                         }
                         catch
                         {
-                            // ignored
+                            
                         }
                     }
                     il2Cpp.Position = addr + il2Cpp.PointerSize;
@@ -268,7 +268,7 @@ namespace Il2CppDumper
                         }
                         catch
                         {
-                            // ignored
+                            
                         }
                     }
                     il2Cpp.Position = addr + il2Cpp.PointerSize;
@@ -315,7 +315,7 @@ namespace Il2CppDumper
                             }
                             catch
                             {
-                                // ignored
+                                
                             }
                         }
                     }
@@ -346,7 +346,7 @@ namespace Il2CppDumper
             return pointers.All(x => bss.Any(y => x >= y.address && x <= y.addressEnd));
         }
 
-        private static readonly byte[] featureBytes = { 0x6D, 0x73, 0x63, 0x6F, 0x72, 0x6C, 0x69, 0x62, 0x2E, 0x64, 0x6C, 0x6C, 0x00 }; //mscorlib.dll
+        private static readonly byte[] featureBytes = { 0x6D, 0x73, 0x63, 0x6F, 0x72, 0x6C, 0x69, 0x62, 0x2E, 0x64, 0x6C, 0x6C, 0x00 }; 
 
         private ulong FindCodeRegistrationData()
         {

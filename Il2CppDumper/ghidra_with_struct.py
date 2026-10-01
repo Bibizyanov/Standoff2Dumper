@@ -1,15 +1,15 @@
-# -*- coding: utf-8 -*-
+                       
 import json
 
 from ghidra.app.util.cparser.C import CParserUtils
 from ghidra.app.cmd.function import ApplyFunctionSignatureCmd
 
 processFields = [
-	"ScriptMethod",
-	"ScriptString",
-	"ScriptMetadata",
-	"ScriptMetadataMethod",
-	"Addresses",
+ "ScriptMethod",
+ "ScriptString",
+ "ScriptMetadata",
+ "ScriptMetadataMethod",
+ "Addresses",
 ]
 
 functionManager = currentProgram.getFunctionManager()
@@ -27,7 +27,7 @@ def set_name(addr, name):
         print("set_name() Failed.")
 
 def set_type(addr, type):
-	# Requires types (il2cpp.h) to be imported first
+                                                 
 	newType = type.replace("*"," *").replace("  "," ").strip()
 	dataTypes = getDataTypes(newType)
 	addrType = None
@@ -51,7 +51,7 @@ def set_type(addr, type):
 	        createData(addr, addrType)
 	    except ghidra.program.model.util.CodeUnitInsertionException:
 	        print("Warning: unable to set type (CodeUnitInsertionException)")
-	    
+     
 
 def make_function(start):
 	func = getFunctionAt(start)
@@ -68,7 +68,7 @@ def set_sig(addr, name, sig):
 		print("Warning: Unable to parse")
 		print(sig)
 		print("Attempting to modify...")
-		# try to fix by renaming the parameters
+                                         
 		try:
 			newSig = sig.replace(", ","ext, ").replace("\)","ext\)")
 			typeSig = CParserUtils.parseSignature(None, currentProgram, newSig, False)

@@ -40,6 +40,7 @@ namespace Il2CppDumper
                 var path = Path.Combine(dir, name);
                 try
                 {
+                    WatermarkService.EmbedAssemblyMetadata(assembly);
                     assembly.Write(path);
                     written++;
                 }
@@ -52,6 +53,7 @@ namespace Il2CppDumper
                             new AssemblyNameDefinition(fallbackName, new Version(0, 0, 0, 0)),
                             name,
                             ModuleKind.Dll);
+                        WatermarkService.EmbedAssemblyMetadata(fallback);
                         fallback.Write(path);
                         written++;
                     }
@@ -97,6 +99,7 @@ namespace Il2CppDumper
                         new AssemblyNameDefinition(assemblyName, new Version(0, 0, 0, 0)),
                         imageName,
                         ModuleKind.Dll);
+                    WatermarkService.EmbedAssemblyMetadata(assembly);
                     assembly.Write(Path.Combine(dir, imageName));
                     written++;
                 }

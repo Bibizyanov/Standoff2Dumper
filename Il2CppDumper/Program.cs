@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -8,200 +9,118 @@ namespace Il2CppDumper
 {
     class Program
     {
-        private static Config config;
+        private static Config cfg;
 
         [STAThread]
         static void Main(string[] args)
         {
-            config = JsonSerializer.Deserialize<Config>(
-                File.ReadAllText(
-                    Path.Combine(
-                        AppContext.BaseDirectory,
-                        "config.json"
-                    )
-                )
-            );
+            cfg = JsonSerializer.Deserialize<Config>(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "config.json")));
 
-            string binaryPath = null;
+            string bp = null;
+            var pos = new List<string>();
 
-            string outputDir = Path.Combine(
-                AppContext.BaseDirectory,
-                "dump"
-            );
-
-            Directory.CreateDirectory(outputDir);
-
-            outputDir = Path.GetFullPath(outputDir);
-
-            if (!outputDir.EndsWith(Path.DirectorySeparatorChar))
-                outputDir += Path.DirectorySeparatorChar;
-
-            if (args.Length > 0 && File.Exists(args[0]))
+            for (var i = 0; i < args.Length; i++)
             {
-                binaryPath = args[0];
-            }
-
-            if (args.Length > 1)
-            {
-                outputDir = Path.GetFullPath(args[1]);
-
-                Directory.CreateDirectory(outputDir);
-
-                if (!outputDir.EndsWith(Path.DirectorySeparatorChar))
-                    outputDir += Path.DirectorySeparatorChar;
-            }
-
-            if (binaryPath == null &&
-                RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                var dialog = new OpenFileDialog
+                var a = args[i];
+                if (a.Equals("--help", StringComparison.OrdinalIgnoreCase) || a.Equals("-h", StringComparison.OrdinalIgnoreCase))
                 {
-                    Filter = "libunity.so|libunity.so|Binary|*.*"
-                };
-
-                if (dialog.ShowDialog())
-                {
-                    binaryPath = dialog.FileName;
+                    Usage();
+                    return;
                 }
+                else if (a.StartsWith("--", StringComparison.Ordinal))
+                    Console.WriteLine($"unknown option: {a}");
+                else
+                    pos.Add(a);
             }
 
-            if (binaryPath == null)
-            {
-                Console.WriteLine(
-                    "usage: Il2CppDumper <libunity.so> [output-directory]"
-                );
+            var od = Path.Combine(AppContext.BaseDirectory, "dump");
+            if (pos.Count > 0 && File.Exists(pos[0]))
+                bp = pos[0];
+            if (pos.Count > 1)
+                od = Path.GetFullPath(pos[1]);
 
+            Directory.CreateDirectory(od);
+            od = Path.GetFullPath(od);
+            if (!od.EndsWith(Path.DirectorySeparatorChar))
+                od += Path.DirectorySeparatorChar;
+
+            if (bp == null && RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                var d = new OpenFileDialog { Filter = "libunity.so|libunity.so|Binary|*.*" };
+                if (d.ShowDialog())
+                    bp = d.FileName;
+            }
+
+            if (bp == null)
+            {
+                Usage();
                 return;
             }
 
+            ProtectedMetadataRebuilder.RebuildResult rb = default;
             try
             {
-                var rebuilt =
-                    ProtectedMetadataRebuilder.Rebuild(
-                        binaryPath,
-                        outputDir,
-                        config
-                    );
-
-                Init(
-                    rebuilt.BinaryPath,
-                    rebuilt.MetadataPath,
-                    out var metadata,
-                    out var il2Cpp
-                );
-
-                Dump(
-                    metadata,
-                    il2Cpp,
-                    outputDir
-                );
+                var ss = AxentApi.Session(bp);
+                WatermarkService.Initialize(cfg, bp, ss.Token, ss.PublicKey);
+                rb = ProtectedMetadataRebuilder.Rebuild(bp, cfg, ss.Protected);
+                Init(rb.BinaryPath, rb.MetadataPath, out var md, out var il);
+                Dump(md, il, od);
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                Console.WriteLine(
-                    $"ERROR: {ex.Message}"
-                );
+                Console.WriteLine($"error: {e.Message}");
+            }
+            finally
+            {
+                ProtectedMetadataRebuilder.Clean(rb);
             }
         }
 
-        private static ulong Hex(string value)
+        private static void Usage()
         {
-            return Convert.ToUInt64(
-                value.Replace("0x", ""),
-                16
-            );
+            Console.WriteLine("usage: Il2CppDumper <libunity.so> [output-directory]");
         }
 
-        private static void Init(
-            string binaryPath,
-            string metadataPath,
-            out Metadata metadata,
-            out Il2Cpp il2Cpp
-        )
+        private static void Init(string bp, string mp, out Metadata md, out Il2Cpp il)
         {
-            var metadataBytes =
-                File.ReadAllBytes(metadataPath);
+            var mb = File.ReadAllBytes(mp);
+            md = new Metadata(new MemoryStream(mb));
 
-            metadata = new Metadata(
-                new MemoryStream(metadataBytes)
-            );
+            var bb = File.ReadAllBytes(bp);
+            if (bb.Length < 5 || BitConverter.ToUInt32(bb, 0) != 0x464C457F || bb[4] != 2)
+                throw new NotSupportedException("ELF64 required");
 
-            var binaryBytes =
-                File.ReadAllBytes(binaryPath);
+            il = new Elf64(new MemoryStream(bb));
+            il.SetProperties(md.Version, md.metadataUsagesCount);
 
-            if (binaryBytes.Length < 5 ||
-                BitConverter.ToUInt32(binaryBytes, 0) != 0x464C457F ||
-                binaryBytes[4] != 2)
-            {
-                throw new NotSupportedException(
-                    "ELF64 required"
-                );
-            }
-
-            il2Cpp = new Elf64(
-                new MemoryStream(binaryBytes)
-            );
-
-            il2Cpp.SetProperties(
-                metadata.Version,
-                metadata.metadataUsagesCount
-            );
-
-            Console.WriteLine("Searching rebuilt stock registrations...");
-            var methodCount = metadata.methodDefs.Count(x => x.methodIndex >= 0);
-            if (!il2Cpp.PlusSearch(methodCount, metadata.typeDefs.Length, metadata.imageDefs.Length))
-            {
-                throw new InvalidDataException("Stock CodeRegistration/MetadataRegistration not found in rebuilt libunity.so");
-            }
+            Console.WriteLine("searching registrations...");
+            var mc = md.methodDefs.Count(x => x.methodIndex >= 0);
+            if (!il.PlusSearch(mc, md.typeDefs.Length, md.imageDefs.Length))
+                throw new InvalidDataException("registrations not found");
         }
 
-        private static void Dump(
-            Metadata metadata,
-            Il2Cpp il2Cpp,
-            string outputDir
-        )
+        private static void Dump(Metadata md, Il2Cpp il, string od)
         {
-            Directory.CreateDirectory(outputDir);
+            Directory.CreateDirectory(od);
+            if (!od.EndsWith(Path.DirectorySeparatorChar))
+                od += Path.DirectorySeparatorChar;
 
-            if (!outputDir.EndsWith(Path.DirectorySeparatorChar))
-                outputDir += Path.DirectorySeparatorChar;
+            var ex = new Il2CppExecutor(md, il);
+            var dc = new Il2CppDecompiler(ex);
+            dc.Decompile(cfg, od);
 
-            var executor = new Il2CppExecutor(
-                metadata,
-                il2Cpp
-            );
-
-            var decompiler = new Il2CppDecompiler(
-                executor
-            );
-
-            decompiler.Decompile(
-                config,
-                outputDir
-            );
-
-            if (config.GenerateStruct)
+            if (cfg.GenerateStruct)
             {
-                var structGenerator =
-                    new StructGenerator(
-                        executor
-                    );
-
-                structGenerator.WriteScript(
-                    outputDir
-                );
+                var sg = new StructGenerator(ex);
+                sg.WriteScript(od);
             }
 
-            if (config.GenerateDummyDll)
-            {
-                DummyAssemblyExporter.Export(
-                    executor,
-                    outputDir,
-                    config.DummyDllAddToken
-                );
-            }
+            if (cfg.GenerateDummyDll)
+                DummyAssemblyExporter.Export(ex, od, cfg.DummyDllAddToken);
 
-            Console.WriteLine("Done");
+            WatermarkService.ApplyTextWatermarks(od);
+            WatermarkService.WriteManifest(od);
+            Console.WriteLine("done");
         }
     }
 }

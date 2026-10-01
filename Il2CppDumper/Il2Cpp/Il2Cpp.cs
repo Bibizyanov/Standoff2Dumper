@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -52,7 +52,7 @@ namespace Il2CppDumper
         {
             if (codeRegistration != 0)
             {
-                var limit = this is WebAssemblyMemory ? 0x35000u : 0x50000u; //TODO
+                var limit = this is WebAssemblyMemory ? 0x35000u : 0x50000u; 
                 if (Version >= 24.2)
                 {
                     pCodeRegistration = MapVATR<Il2CppCodeRegistration>(codeRegistration);
@@ -98,7 +98,7 @@ namespace Il2CppDumper
                     }
                     if (Version == 24.2)
                     {
-                        if (pCodeRegistration.interopDataCount == 0) //TODO
+                        if (pCodeRegistration.interopDataCount == 0) 
                         {
                             Version = 24.3;
                             codeRegistration -= PointerSize * 2;
@@ -120,7 +120,7 @@ namespace Il2CppDumper
         public virtual void Init(ulong codeRegistration, ulong metadataRegistration)
         {
             pCodeRegistration = MapVATR<Il2CppCodeRegistration>(codeRegistration);
-            var limit = this is WebAssemblyMemory ? 0x35000u : 0x50000u; //TODO
+            var limit = this is WebAssemblyMemory ? 0x35000u : 0x50000u; 
             if (Version == 27 && pCodeRegistration.invokerPointersCount > limit)
             {
                 Version = 27.1;
@@ -151,7 +151,7 @@ namespace Il2CppDumper
                 Console.WriteLine($"Change il2cpp version to: {Version}");
                 pCodeRegistration = MapVATR<Il2CppCodeRegistration>(codeRegistration);
             }
-            if (Version == 24.2 && pCodeRegistration.codeGenModules == 0) //TODO
+            if (Version == 24.2 && pCodeRegistration.codeGenModules == 0) 
             {
                 Version = 24.3;
                 Console.WriteLine($"Change il2cpp version to: {Version}");

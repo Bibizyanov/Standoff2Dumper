@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -176,7 +176,7 @@ namespace Il2CppDumper
             }
             catch
             {
-                // ignored
+                
             }
         }
 
@@ -211,7 +211,7 @@ namespace Il2CppDumper
             }
             catch
             {
-                // ignored
+                
             }
         }
 
@@ -219,13 +219,13 @@ namespace Il2CppDumper
         {
             try
             {
-                //.init_proc
+                
                 if (dynamicSection.Any(x => x.d_tag == DT_INIT))
                 {
                     Console.WriteLine("WARNING: find .init_proc");
                     return true;
                 }
-                //JNI_OnLoad
+                
                 ulong dynstrOffset = MapVATR(dynamicSection.First(x => x.d_tag == DT_STRTAB).d_un);
                 foreach (var symbol in symbolTable)
                 {
@@ -245,7 +245,7 @@ namespace Il2CppDumper
             }
             catch
             {
-                // ignored
+                
             }
             return false;
         }
@@ -311,13 +311,13 @@ namespace Il2CppDumper
                 {
                     switch (phdr.p_flags)
                     {
-                        case 1u: //PF_X
+                        case 1u: 
                         case 3u:
                         case 5u:
                         case 7u:
                             execList.Add(phdr);
                             break;
-                        case 2u: //PF_W && PF_R
+                        case 2u: 
                         case 4u:
                         case 6u:
                             dataList.Add(phdr);

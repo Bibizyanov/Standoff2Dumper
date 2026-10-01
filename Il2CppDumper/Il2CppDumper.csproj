@@ -13,7 +13,7 @@
     <None Update="config.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Update="protected_metadata.py">
+    <None Update="protected_metadata.bin">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="ghidra.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></None>

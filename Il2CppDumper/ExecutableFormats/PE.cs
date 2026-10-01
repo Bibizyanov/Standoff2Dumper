@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -17,7 +17,7 @@ namespace Il2CppDumper
                 throw new InvalidDataException("ERROR: Invalid PE file");
             }
             Position = dosHeader.Lfanew;
-            if (ReadUInt32() != 0x4550u) //Signature
+            if (ReadUInt32() != 0x4550u) 
             {
                 throw new InvalidDataException("ERROR: Invalid PE file");
             }

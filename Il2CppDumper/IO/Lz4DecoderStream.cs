@@ -1,6 +1,6 @@
-﻿#define CHECK_ARGS
+#define CHECK_ARGS
 #define CHECK_EOF
-//#define LOCAL_SHADOW
+
 
 using System;
 using System.IO;
@@ -51,10 +51,10 @@ namespace Il2CppDumper
         private long inputLength;
         private Stream input;
 
-        //because we might not be able to match back across invocations,
-        //we have to keep the last window's worth of bytes around for reuse
-        //we use a circular buffer for this - every time we write into this
-        //buffer, we also write the same into our output buffer
+        
+        
+        
+        
 
         private const int DecBufLen = 0x10000;
         private const int DecBufMask = 0xFFFF;
@@ -64,8 +64,8 @@ namespace Il2CppDumper
         private byte[] decodeBuffer = new byte[DecBufLen + InBufLen];
         private int decodeBufferPos, inBufPos, inBufEnd;
 
-        //we keep track of which phase we're in so that we can jump right back
-        //into the correct part of decoding
+        
+        
 
         private DecodePhase phase;
 
@@ -79,8 +79,8 @@ namespace Il2CppDumper
             CopyMatch,
         }
 
-        //state within interruptable phases and across phase boundaries is
-        //kept here - again, so that we can punt out and restart freely
+        
+        
 
         private int litLen, matLen, matDst;
 
@@ -99,11 +99,11 @@ namespace Il2CppDumper
 
             var decBuf = decodeBuffer;
 
-            //the stringy gotos are obnoxious, but their purpose is to
-            //make it *blindingly* obvious how the state machine transitions
-            //back and forth as it reads - remember, we can yield out of
-            //this routine in several places, and we must be able to re-enter
-            //and pick up where we left off!
+            
+            
+            
+            
+            
 
 #if LOCAL_SHADOW
 			var phase = this.phase;
@@ -317,7 +317,7 @@ namespace Il2CppDumper
                 int bufDst = matDst - nRead;
                 if (bufDst > 0)
                 {
-                    //offset is fairly far back, we need to pull from the buffer
+                    
 
                     int bufSrc = decodeBufferPos - bufDst;
                     if (bufSrc < 0)

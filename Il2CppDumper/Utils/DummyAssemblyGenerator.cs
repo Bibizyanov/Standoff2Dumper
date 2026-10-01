@@ -548,11 +548,11 @@ namespace Il2CppDumper
             if (module == null || runtimeType == null)
                 return null;
 
-            // Do not touch ModuleDefinition.TypeSystem here. Some rebuilt/protected
-            // assemblies can have an incomplete corlib scope while dummy types are
-            // being created; TypeSystem.Object then throws NullReferenceException.
-            // Importing the CLR type directly lets Cecil create/use the proper
-            // corlib reference without relying on that partially initialized state.
+            
+            
+            
+            
+            
             try
             {
                 return module.ImportReference(runtimeType);

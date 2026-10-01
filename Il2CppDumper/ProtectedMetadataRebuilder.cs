@@ -1,75 +1,126 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Security.Cryptography;
 
 namespace Il2CppDumper
 {
     internal static class ProtectedMetadataRebuilder
     {
-        public readonly record struct RebuildResult(string BinaryPath, string MetadataPath);
+        public readonly record struct RebuildResult(string BinaryPath, string MetadataPath, string WorkDir);
 
-        public static RebuildResult Rebuild(string binaryPath, string outputDir, Config config)
+        public static RebuildResult Rebuild(string bp, Config cfg, ProtectedProfile x)
         {
-            var script = Path.Combine(AppContext.BaseDirectory, "protected_metadata.py");
-            var cacheDir = Path.Combine(outputDir, ".metadata");
-            var metadataPath = Path.Combine(cacheDir, "global-metadata.dat");
-            var rebuiltBinaryPath = Path.Combine(cacheDir, "libunity.so");
+            if (x == null || string.IsNullOrWhiteSpace(x.rk))
+                throw new InvalidOperationException("profile missing");
 
-            Directory.CreateDirectory(cacheDir);
+            var cd = Path.Combine(Path.GetTempPath(), "axd", Guid.NewGuid().ToString("N"));
+            var py = Path.Combine(cd, "r.py");
+            var mp = Path.Combine(cd, "global-metadata.dat");
+            var rb = Path.Combine(cd, "libunity.so");
+            Directory.CreateDirectory(cd);
 
-            var sourceTime = File.GetLastWriteTimeUtc(binaryPath);
-            if (File.Exists(metadataPath) && File.Exists(rebuiltBinaryPath) &&
-                File.GetLastWriteTimeUtc(metadataPath) >= sourceTime &&
-                File.GetLastWriteTimeUtc(rebuiltBinaryPath) >= sourceTime)
+            try
             {
-                return new RebuildResult(rebuiltBinaryPath, metadataPath);
+                OpenScript(Path.Combine(AppContext.BaseDirectory, "protected_metadata.bin"), py, x.rk);
+            }
+            catch
+            {
+                Clean(new RebuildResult(null, null, cd));
+                throw new InvalidOperationException("rebuilder unavailable");
             }
 
-            var startInfo = new ProcessStartInfo
+            var si = new ProcessStartInfo
             {
-                FileName = string.IsNullOrWhiteSpace(config.PythonExecutable) ? "python" : config.PythonExecutable,
+                FileName = string.IsNullOrWhiteSpace(cfg.PythonExecutable) ? "python" : cfg.PythonExecutable,
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true
             };
 
-            startInfo.ArgumentList.Add(script);
-            startInfo.ArgumentList.Add("--quiet");
-            startInfo.ArgumentList.Add(binaryPath);
-            startInfo.ArgumentList.Add("-o");
-            startInfo.ArgumentList.Add(cacheDir);
-            startInfo.ArgumentList.Add("--metadata-va");
-            startInfo.ArgumentList.Add(config.ProtectedMetadataVA);
-            startInfo.ArgumentList.Add("--code-reg-va");
-            startInfo.ArgumentList.Add(config.ProtectedCodeRegistration);
-            startInfo.ArgumentList.Add("--metadata-reg-va");
-            startInfo.ArgumentList.Add(config.ProtectedMetadataRegistration);
-            startInfo.ArgumentList.Add("--string-literal-offsets-field");
-            startInfo.ArgumentList.Add(config.ProtectedStringLiteralOffsetsField);
-            startInfo.ArgumentList.Add("--string-literal-data-field");
-            startInfo.ArgumentList.Add(config.ProtectedStringLiteralDataField);
-            startInfo.ArgumentList.Add("--string-literal-count-field");
-            startInfo.ArgumentList.Add(config.ProtectedStringLiteralCountField);
-            startInfo.ArgumentList.Add("--string-literal-offsets-count-field");
-            startInfo.ArgumentList.Add(config.ProtectedStringLiteralOffsetsCountField);
+            si.ArgumentList.Add(py);
+            si.ArgumentList.Add("--quiet");
+            si.ArgumentList.Add(bp);
+            si.ArgumentList.Add("-o");
+            si.ArgumentList.Add(cd);
+            si.ArgumentList.Add("--metadata-va");
+            si.ArgumentList.Add(x.mv);
+            si.ArgumentList.Add("--code-reg-va");
+            si.ArgumentList.Add(x.cr);
+            si.ArgumentList.Add("--metadata-reg-va");
+            si.ArgumentList.Add(x.mr);
+            si.ArgumentList.Add("--string-literal-offsets-field");
+            si.ArgumentList.Add(x.slo);
+            si.ArgumentList.Add("--string-literal-data-field");
+            si.ArgumentList.Add(x.sld);
+            si.ArgumentList.Add("--string-literal-count-field");
+            si.ArgumentList.Add(x.slc);
+            si.ArgumentList.Add("--string-literal-offsets-count-field");
+            si.ArgumentList.Add(x.sloc);
+            if (x.kr)
+                si.ArgumentList.Add("--keep-method-rgctx");
 
-            using var process = Process.Start(startInfo) ?? throw new InvalidOperationException("python start failed");
-            var stdout = process.StandardOutput.ReadToEnd();
-            var stderr = process.StandardError.ReadToEnd();
-            process.WaitForExit();
+            using var p = Process.Start(si) ?? throw new InvalidOperationException("python start failed");
+            var so = p.StandardOutput.ReadToEnd();
+            var se = p.StandardError.ReadToEnd();
+            p.WaitForExit();
 
-            // Keep the embedded Python preprocessor silent during normal dumping.
-            // Its captured output is surfaced only when the rebuild actually fails.
-            if (process.ExitCode != 0 || !File.Exists(metadataPath) || !File.Exists(rebuiltBinaryPath))
+            try { File.Delete(py); } catch { }
+
+            if (p.ExitCode != 0 || !File.Exists(mp) || !File.Exists(rb))
             {
-                var detail = string.IsNullOrWhiteSpace(stderr) ? stdout : stderr;
-                if (!string.IsNullOrWhiteSpace(detail))
-                    throw new InvalidOperationException("protected metadata rebuild failed: " + detail.Trim());
+                Clean(new RebuildResult(null, null, cd));
+                var e = string.IsNullOrWhiteSpace(se) ? so : se;
+                if (!string.IsNullOrWhiteSpace(e))
+                    throw new InvalidOperationException("protected metadata rebuild failed: " + e.Trim());
                 throw new InvalidOperationException("protected metadata rebuild failed");
             }
 
-            return new RebuildResult(rebuiltBinaryPath, metadataPath);
+            return new RebuildResult(rb, mp, cd);
+        }
+
+        static void OpenScript(string src, string dst, string k)
+        {
+            var b = File.ReadAllBytes(src);
+            if (b.Length < 29)
+                throw new InvalidDataException();
+            var key = B64(k);
+            if (key.Length != 32)
+                throw new InvalidDataException();
+
+            var nonce = new byte[12];
+            var tag = new byte[16];
+            var ct = new byte[b.Length - 28];
+            Buffer.BlockCopy(b, 0, nonce, 0, 12);
+            Buffer.BlockCopy(b, b.Length - 16, tag, 0, 16);
+            Buffer.BlockCopy(b, 12, ct, 0, ct.Length);
+            var pt = new byte[ct.Length];
+            using (var a = new AesGcm(key))
+                a.Decrypt(nonce, ct, tag, pt);
+            File.WriteAllBytes(dst, pt);
+            CryptographicOperations.ZeroMemory(key);
+            CryptographicOperations.ZeroMemory(pt);
+        }
+
+        static byte[] B64(string s)
+        {
+            s = s.Replace('-', '+').Replace('_', '/');
+            if (s.Length % 4 == 2) s += "==";
+            else if (s.Length % 4 == 3) s += "=";
+            return Convert.FromBase64String(s);
+        }
+
+        public static void Clean(RebuildResult r)
+        {
+            if (string.IsNullOrWhiteSpace(r.WorkDir))
+                return;
+            try
+            {
+                if (Directory.Exists(r.WorkDir))
+                    Directory.Delete(r.WorkDir, true);
+            }
+            catch { }
         }
     }
 }

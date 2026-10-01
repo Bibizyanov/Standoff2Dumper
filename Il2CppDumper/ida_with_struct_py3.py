@@ -1,12 +1,12 @@
-# -*- coding: utf-8 -*-
+                       
 import json
 
 processFields = [
-	"ScriptMethod",
-	"ScriptString",
-	"ScriptMetadata",
-	"ScriptMetadataMethod",
-	"Addresses",
+ "ScriptMethod",
+ "ScriptString",
+ "ScriptMetadata",
+ "ScriptMetadataMethod",
+ "Addresses",
 ]
 
 imageBase = idaapi.get_imagebase()

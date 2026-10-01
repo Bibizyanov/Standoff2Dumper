@@ -7,14 +7,9 @@
   "DumpMethodOffset": true,
   "DumpTypeDefIndex": true,
   "GenerateStruct": true,
-  "ProtectedMetadataVA": "0x1A9A580",
-  "ProtectedCodeRegistration": "0xB8CE740",
-  "ProtectedMetadataRegistration": "0xB8CE7C0",
-  "PythonExecutable": "python",
-  "ProtectedStringLiteralOffsetsField": "0x6C",
-  "ProtectedStringLiteralDataField": "0xC4",
-  "ProtectedStringLiteralCountField": "0x0",
-  "ProtectedStringLiteralOffsetsCountField": "0xD4",
   "GenerateDummyDll": true,
-  "DummyDllAddToken": true
+  "DummyDllAddToken": true,
+  "PythonExecutable": "python",
+  "WatermarkBrand": "axent.cc",
+  "WatermarkRepeatEveryTypes": 0
 }

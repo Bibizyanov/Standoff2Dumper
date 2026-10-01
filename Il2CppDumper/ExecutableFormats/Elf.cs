@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -15,13 +15,13 @@ namespace Il2CppDumper
         private Elf32_Shdr[] sectionTable;
         private Elf32_Phdr pt_dynamic;
 
-        /*
-        * LDR R1, [X]
-        * ADD R0, X, X
-        * ADD R2, X, X
-        */
+        
+
+
+
+
         private static readonly string ARMFeatureBytes = "? 0x10 ? 0xE7 ? 0x00 ? 0xE0 ? 0x20 ? 0xE0";
-        private static readonly string X86FeatureBytes = "? 0x10 ? 0xE7 ? 0x00 ? 0xE0 ? 0x20 ? 0xE0"; //TODO
+        private static readonly string X86FeatureBytes = "? 0x10 ? 0xE7 ? 0x00 ? 0xE0 ? 0x20 ? 0xE0"; 
 
         public Elf(Stream stream) : base(stream)
         {
@@ -106,7 +106,7 @@ namespace Il2CppDumper
                 foreach (var temp in buff.Search(featureBytes))
                 {
                     var bin = buff[temp + 2].HexToBin();
-                    if (bin[3] == '1') //LDR
+                    if (bin[3] == '1') 
                     {
                         resultList.Add(temp);
                     }
@@ -236,7 +236,7 @@ namespace Il2CppDumper
             }
             catch
             {
-                // ignored
+                
             }
         }
 
@@ -268,7 +268,7 @@ namespace Il2CppDumper
             }
             catch
             {
-                // ignored
+                
             }
         }
 
@@ -276,13 +276,13 @@ namespace Il2CppDumper
         {
             try
             {
-                //.init_proc
+                
                 if (dynamicSection.Any(x => x.d_tag == DT_INIT))
                 {
                     Console.WriteLine("WARNING: find .init_proc");
                     return true;
                 }
-                //JNI_OnLoad
+                
                 var dynstrOffset = MapVATR(dynamicSection.First(x => x.d_tag == DT_STRTAB).d_un);
                 foreach (var symbol in symbolTable)
                 {
@@ -302,7 +302,7 @@ namespace Il2CppDumper
             }
             catch
             {
-                // ignored
+                
             }
             return false;
         }
@@ -368,13 +368,13 @@ namespace Il2CppDumper
                 {
                     switch (phdr.p_flags)
                     {
-                        case 1u: //PF_X
+                        case 1u: 
                         case 3u:
                         case 5u:
                         case 7u:
                             execList.Add(phdr);
                             break;
-                        case 2u: //PF_W && PF_R
+                        case 2u: 
                         case 4u:
                         case 6u:
                             dataList.Add(phdr);

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.IO;
 
 namespace Il2CppDumper
@@ -70,7 +70,7 @@ namespace Il2CppDumper
 
         private string AttributeDataToString(BlobValue blobValue)
         {
-            //TODO enum
+            
             if (blobValue.Value == null)
             {
                 return "null";

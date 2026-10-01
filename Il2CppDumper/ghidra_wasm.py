@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+                       
 import json
 
 from wasm import WasmLoader
@@ -11,11 +11,11 @@ WasmLoader.loadElementsToTable(currentProgram, WasmAnalysis.getState(currentProg
 runScript("analyze_dyncalls.py")
 
 processFields = [
-	"ScriptMethod",
-	"ScriptString",
-	"ScriptMetadata",
-	"ScriptMetadataMethod",
-	"Addresses",
+ "ScriptMethod",
+ "ScriptString",
+ "ScriptMetadata",
+ "ScriptMetadataMethod",
+ "Addresses",
 ]
 
 functionManager = currentProgram.getFunctionManager()

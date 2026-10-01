@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 
 namespace Il2CppDumper
@@ -26,13 +26,13 @@ namespace Il2CppDumper
                         dataSections[i] = dataSection;
                         dataSection.Index = ReadULeb128();
                         var opCode = ReadByte();
-                        if (opCode != 0x41) //i32.const
+                        if (opCode != 0x41) 
                         {
                             throw new InvalidOperationException();
                         }
                         dataSection.Offset = ReadULeb128();
                         opCode = ReadByte();
-                        if (opCode != 0xB) //end
+                        if (opCode != 0xB) 
                         {
                             throw new InvalidOperationException();
                         }
