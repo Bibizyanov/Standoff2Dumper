@@ -10,6 +10,7 @@
   "GenerateDummyDll": true,
   "DummyDllAddToken": true,
   "PythonExecutable": "python",
+  "GameVersion": "google",
   "WatermarkBrand": "axent.cc",
   "WatermarkRepeatEveryTypes": 0
 }

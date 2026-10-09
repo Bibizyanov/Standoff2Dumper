@@ -14,9 +14,11 @@ namespace Il2CppDumper
         [STAThread]
         static void Main(string[] args)
         {
-            cfg = JsonSerializer.Deserialize<Config>(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "config.json")));
+            cfg = JsonSerializer.Deserialize<Config>(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "config.json"))) ?? new Config();
 
             string bp = null;
+            string variant = null;
+            bool noDummy = false;
             var pos = new List<string>();
 
             for (var i = 0; i < args.Length; i++)
@@ -27,8 +29,20 @@ namespace Il2CppDumper
                     Usage();
                     return;
                 }
+                else if (a.Equals("--version", StringComparison.OrdinalIgnoreCase) || a.Equals("--edition", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (++i >= args.Length)
+                        throw new ArgumentException("missing version");
+                    variant = args[i];
+                }
+                else if (a.Equals("--google", StringComparison.OrdinalIgnoreCase))
+                    variant = "google";
+                else if (a.Equals("--huawei", StringComparison.OrdinalIgnoreCase))
+                    variant = "huawei";
+                else if (a.Equals("--no-dummy-dll", StringComparison.OrdinalIgnoreCase))
+                    noDummy = true;
                 else if (a.StartsWith("--", StringComparison.Ordinal))
-                    Console.WriteLine($"unknown option: {a}");
+                    throw new ArgumentException("unknown option: " + a);
                 else
                     pos.Add(a);
             }
@@ -57,18 +71,75 @@ namespace Il2CppDumper
                 return;
             }
 
+            if (string.IsNullOrWhiteSpace(variant))
+            {
+                variant = string.IsNullOrWhiteSpace(cfg.GameVersion) ? "google" : cfg.GameVersion;
+                if (!Console.IsInputRedirected)
+                {
+                    Console.Write("version [1 Google / 2 Huawei] (1): ");
+                    var input = Console.ReadLine()?.Trim();
+                    if (input == "2" || input?.Equals("huawei", StringComparison.OrdinalIgnoreCase) == true)
+                        variant = "huawei";
+                    else if (input == "1" || input?.Equals("google", StringComparison.OrdinalIgnoreCase) == true)
+                        variant = "google";
+                }
+            }
+            variant = variant.Trim().ToLowerInvariant();
+            if (variant != "google" && variant != "huawei")
+            {
+                Console.WriteLine("error: version must be google or huawei");
+                return;
+            }
+
+            if (noDummy)
+                cfg.GenerateDummyDll = false;
+
+            if (pos.Count < 2)
+            {
+                od = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "dump", variant));
+                Directory.CreateDirectory(od);
+                if (!od.EndsWith(Path.DirectorySeparatorChar))
+                    od += Path.DirectorySeparatorChar;
+            }
+
             ProtectedMetadataRebuilder.RebuildResult rb = default;
             try
             {
                 var ss = AxentApi.Session(bp);
                 WatermarkService.Initialize(cfg, bp, ss.Token, ss.PublicKey);
-                rb = ProtectedMetadataRebuilder.Rebuild(bp, cfg, ss.Protected);
-                Init(rb.BinaryPath, rb.MetadataPath, out var md, out var il);
-                Dump(md, il, od);
+                if (variant == "huawei")
+                {
+                    Console.WriteLine("Huawei: beginning dump");
+                    HuaweiMetadataDumper.Dump(bp, od, cfg);
+                    Console.WriteLine("Huawei: applying watermark");
+                    WatermarkService.ApplyTextWatermarks(od);
+                    Console.WriteLine("Huawei: hashing output files");
+                    WatermarkService.WriteManifest(od);
+                    Console.WriteLine("done");
+                }
+                else
+                {
+                    rb = ProtectedMetadataRebuilder.Rebuild(bp, cfg, ss.Protected);
+                    Init(rb.BinaryPath, rb.MetadataPath, out var md, out var il);
+                    Dump(md, il, od);
+                }
             }
             catch (Exception e)
             {
-                Console.WriteLine($"error: {e.Message}");
+                Console.Error.WriteLine("error: " + e);
+                try
+                {
+                    Directory.CreateDirectory(od);
+                    File.AppendAllText(Path.Combine(od, "error.log"),
+                        DateTime.Now.ToString("s") + Environment.NewLine + e + Environment.NewLine);
+                    Console.Error.WriteLine("Saved: " + Path.Combine(od, "error.log"));
+                }
+                catch { }
+                if (args.Length == 0 && RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && !Console.IsInputRedirected)
+                {
+                    Console.WriteLine("Press Enter to close...");
+                    Console.ReadLine();
+                }
             }
             finally
             {
@@ -78,7 +149,7 @@ namespace Il2CppDumper
 
         private static void Usage()
         {
-            Console.WriteLine("usage: Il2CppDumper <libunity.so> [output-directory]");
+            Console.WriteLine("usage: Il2CppDumper <libunity.so> [output-directory] --version google|huawei [--no-dummy-dll]");
         }
 
         private static void Init(string bp, string mp, out Metadata md, out Il2Cpp il)
