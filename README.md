@@ -1,4 +1,3 @@
-Dual build support: see README-DUAL.txt for Google / Huawei instructions.
 
 # Standoff 2 Dumper
 
