@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -9,16 +9,16 @@ namespace Il2CppDumper
 {
     public sealed class Macho64 : Il2Cpp
     {
-        private static readonly byte[] FeatureBytes1 = { 0x2, 0x0, 0x80, 0xD2 };
-        private static readonly byte[] FeatureBytes2 = { 0x3, 0x0, 0x80, 0x52 };
+        private static readonly byte[] FeatureBytes1 = { 0x2, 0x0, 0x80, 0xD2 };//MOV X2, #0
+        private static readonly byte[] FeatureBytes2 = { 0x3, 0x0, 0x80, 0x52 };//MOV W3, #0
         private readonly List<MachoSection64Bit> sections = new();
         private readonly ulong vmaddr;
 
         public Macho64(Stream stream) : base(stream)
         {
-            Position += 16; 
+            Position += 16; //skip magic, cputype, cpusubtype, filetype
             var ncmds = ReadUInt32();
-            Position += 12; 
+            Position += 12; //skip sizeofcmds, flags, reserved
             for (var i = 0; i < ncmds; i++)
             {
                 var pos = Position;
@@ -26,9 +26,9 @@ namespace Il2CppDumper
                 var cmdsize = ReadUInt32();
                 switch (cmd)
                 {
-                    case 0x19: 
+                    case 0x19: //LC_SEGMENT_64
                         var segname = Encoding.UTF8.GetString(ReadBytes(16)).TrimEnd('\0');
-                        if (segname == "__TEXT") 
+                        if (segname == "__TEXT") //__PAGEZERO
                         {
                             vmaddr = ReadUInt64();
                         }
@@ -36,24 +36,24 @@ namespace Il2CppDumper
                         {
                             Position += 8;
                         }
-                        Position += 32; 
+                        Position += 32; //skip vmsize, fileoff, filesize, maxprot, initprot
                         var nsects = ReadUInt32();
-                        Position += 4; 
+                        Position += 4; //skip flags
                         for (var j = 0; j < nsects; j++)
                         {
                             var section = new MachoSection64Bit();
                             sections.Add(section);
                             section.sectname = Encoding.UTF8.GetString(ReadBytes(16)).TrimEnd('\0');
-                            Position += 16; 
+                            Position += 16; //skip segname
                             section.addr = ReadUInt64();
                             section.size = ReadUInt64();
                             section.offset = ReadUInt32();
-                            Position += 12; 
+                            Position += 12; //skip align, reloff, nreloc
                             section.flags = ReadUInt32();
-                            Position += 12; 
+                            Position += 12; //skip reserved1, reserved2, reserved3
                         }
                         break;
-                    case 0x2C: 
+                    case 0x2C: //LC_ENCRYPTION_INFO_64
                         Position += 8;
                         var cryptID = ReadUInt32();
                         if (cryptID != 0)
@@ -62,7 +62,7 @@ namespace Il2CppDumper
                         }
                         break;
                 }
-                Position = pos + cmdsize;
+                Position = pos + cmdsize;//skip
             }
         }
 
@@ -154,14 +154,14 @@ namespace Il2CppDumper
             }
             if (Version == 23)
             {
-                
-
-
-
-
-
-
-
+                /* ADRP X0, unk
+                 * ADD X0, X0, unk
+                 * ADR X1, sub
+                 * NOP
+                 * MOV X2, #0
+                 * MOV W3, #0
+                 * B sub
+                 */
                 var __mod_init_func = sections.First(x => x.sectname == "__mod_init_func");
                 var addrs = ReadClassArray<ulong>(__mod_init_func.offset, __mod_init_func.size / 8);
                 foreach (var i in addrs)
@@ -191,14 +191,14 @@ namespace Il2CppDumper
             }
             if (Version >= 24)
             {
-                
-
-
-
-
-
-
-
+                /* ADRP X0, unk
+                 * ADD X0, X0, unk
+                 * ADR X1, sub
+                 * NOP
+                 * MOV W3, #0
+                 * MOV X2, #0
+                 * B sub
+                 */
                 var __mod_init_func = sections.First(x => x.sectname == "__mod_init_func");
                 var addrs = ReadClassArray<ulong>(__mod_init_func.offset, __mod_init_func.size / 8);
                 foreach (var i in addrs)

@@ -1,13 +1,13 @@
+﻿# Visual Studio
 .vs/
 *.user
 *.suo
 *.userosscache
 *.sln.docstates
 
+# Build intermediates
 **/bin/
 **/obj/
 
+# Dump output
 dump/
-
-__pycache__/
-*.pyc

@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 
 namespace Il2CppDumper
 {
@@ -45,9 +45,9 @@ namespace Il2CppDumper
             var exec = new SearchSection
             {
                 offset = 0,
-                offsetEnd = (ulong)methodCount, 
+                offsetEnd = (ulong)methodCount, //hack
                 address = 0,
-                addressEnd = (ulong)methodCount 
+                addressEnd = (ulong)methodCount //hack
             };
             var data = new SearchSection
             {
@@ -59,9 +59,9 @@ namespace Il2CppDumper
             var bss = new SearchSection
             {
                 offset = bssStart,
-                offsetEnd = long.MaxValue, 
+                offsetEnd = long.MaxValue, //hack
                 address = bssStart,
-                addressEnd = long.MaxValue 
+                addressEnd = long.MaxValue //hack
             };
             var sectionHelper = new SectionHelper(this, methodCount, typeDefinitionsCount, metadataUsagesCount, imageCount);
             sectionHelper.SetSection(SearchSectionType.Exec, exec);

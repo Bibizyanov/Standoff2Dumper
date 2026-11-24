@@ -1,4 +1,4 @@
-namespace Il2CppDumper
+﻿namespace Il2CppDumper
 {
     public class Config
     {
@@ -13,8 +13,5 @@ namespace Il2CppDumper
         public bool GenerateDummyDll { get; set; } = true;
         public bool DummyDllAddToken { get; set; } = true;
         public string PythonExecutable { get; set; } = "python";
-        public string GameVersion { get; set; } = "google";
-        public string WatermarkBrand { get; set; } = "axent.cc";
-        public int WatermarkRepeatEveryTypes { get; set; } = 0;
     }
 }

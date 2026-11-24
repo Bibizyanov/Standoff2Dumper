@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -21,16 +21,16 @@ namespace Il2CppDumper
                 throw new InvalidDataException("ERROR: Invalid PE file");
             }
             reader.Position = dosHeader.Lfanew;
-            if (reader.ReadUInt32() != 0x4550u) 
+            if (reader.ReadUInt32() != 0x4550u) //Signature
             {
                 throw new InvalidDataException("ERROR: Invalid PE file");
             }
             var fileHeader = reader.ReadClass<FileHeader>();
-            if (fileHeader.Machine == 0x14c && Environment.Is64BitProcess) 
+            if (fileHeader.Machine == 0x14c && Environment.Is64BitProcess) //64bit process can't load 32bit dll
             {
                 throw new InvalidOperationException("The file is a 32-bit file, please try to load it with Il2CppDumper-x86.exe");
             }
-            if (fileHeader.Machine == 0x8664 && !Environment.Is64BitProcess) 
+            if (fileHeader.Machine == 0x8664 && !Environment.Is64BitProcess) //32bit process can't load 64bit dll
             {
                 throw new InvalidOperationException("The file is a 64-bit file, please try to load it with Il2CppDumper.exe");
             }

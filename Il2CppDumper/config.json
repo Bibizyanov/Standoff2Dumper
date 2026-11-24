@@ -2,15 +2,12 @@
   "DumpMethod": true,
   "DumpField": true,
   "DumpProperty": true,
-  "DumpAttribute": false,
+  "DumpAttribute": true,
   "DumpFieldOffset": true,
   "DumpMethodOffset": true,
   "DumpTypeDefIndex": true,
   "GenerateStruct": true,
-  "GenerateDummyDll": true,
-  "DummyDllAddToken": true,
   "PythonExecutable": "python",
-  "GameVersion": "google",
-  "WatermarkBrand": "axent.cc",
-  "WatermarkRepeatEveryTypes": 0
+  "GenerateDummyDll": true,
+  "DummyDllAddToken": true
 }
