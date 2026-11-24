@@ -1,4 +1,4 @@
-# Standoff2Dumper — protected IL2CPP v31 (self-updating)
+# Standoff2Dumper 
 
 Работает через стандартный Il2CppDumper: реконструктор создаёт `global-metadata.dat` и нормализованный `libunity.so` в папке `.metadata`, затем оригинальный C#-движок генерирует `dump.cs`, `script.json`, `il2cpp.h` и `DummyDll`.
 
